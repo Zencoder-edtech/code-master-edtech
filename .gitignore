@@ -5,10 +5,12 @@ node_modules
 .pnp
 .pnp.js
 
-# testing
-coverage
+## testing
+- [ ] Works on desktop (Monaco Editor)
+- [ ] Works on phone (CodeMirror touch UI)
+- [ ] Tested on real Android / iOS device
 
-# next.js
+## next.js
 .next/
 out/
 build
@@ -34,3 +36,10 @@ yarn-error.log*
 
 # ui
 dist/
+
+##Checklist (Self-Review)
+- [ ] Follows clean architecture (domain / application / infrastructure)
+- [ ] No console.logs or commented code left
+- [ ] Lint + type check pass (`pnpm lint` and `pnpm type-check`)
+- [ ] Self-reviewed PR
+- [ ] PR linked to Linear ticket
