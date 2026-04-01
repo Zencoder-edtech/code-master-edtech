@@ -1,0 +1,184 @@
+// =============================================================================
+// CodeMaster EdTech — Prisma Schema
+// Production-grade, DPDP Act 2023 compliant, all bidirectional relations
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// =============================================================================
+// USER — DPDP Act 2023: age gate + verifiable parental consent
+// =============================================================================
+model User {
+  id                      String       @id @default(cuid())
+  email                   String       @unique
+  name                    String?
+  dateOfBirth             DateTime?    @map("date_of_birth")
+  age                     Int
+  isMinor                 Boolean      @default(true) @map("is_minor")
+  parentalConsent         Boolean      @default(false) @map("parental_consent")
+  parentalConsentTimestamp DateTime?   @map("parental_consent_timestamp")
+  parentalEmail           String?      @map("parental_email")
+  role                    String       @default("student")
+  subscriptionTier        String       @default("free") @map("subscription_tier")
+  schoolId                String?      @map("school_id")
+  createdAt               DateTime     @default(now()) @map("created_at")
+  updatedAt               DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  progress                Progress[]
+  submissions             Submission[]
+
+  @@map("users")
+}
+
+// =============================================================================
+// COURSE — A language-specific course (e.g. "Python Fundamentals")
+// =============================================================================
+model Course {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  language    String   @default("python")
+  description String?
+  isPublished Boolean  @default(false) @map("is_published")
+  order       Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  topics      Topic[]
+
+  @@map("courses")
+}
+
+// =============================================================================
+// TOPIC — A learning unit within a course (e.g. "Loops")
+// Flow: Concept Card → 3 MCQs → 3 Coding Problems
+// =============================================================================
+model Topic {
+  id          String   @id @default(cuid())
+  courseId     String   @map("course_id")
+  title       String
+  slug        String
+  description String?
+  conceptHtml String   @map("concept_html") @db.Text
+  videoUrl    String?  @map("video_url")
+  order       Int      @default(0)
+  isPublished Boolean  @default(false) @map("is_published")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  course      Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  mcqs        MCQ[]
+  problems    Problem[]
+  progress    Progress[]
+
+  @@unique([courseId, slug])
+  @@map("topics")
+}
+
+// =============================================================================
+// MCQ — Multiple choice question (3 per topic)
+// =============================================================================
+model MCQ {
+  id          String   @id @default(cuid())
+  topicId     String   @map("topic_id")
+  question    String   @db.Text
+  options     Json     // ["option1", "option2", "option3", "option4"]
+  correctIndex Int     @default(0) @map("correct_index")
+  explanation String?  @db.Text
+  order       Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  topic       Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@map("mcqs")
+}
+
+// =============================================================================
+// PROBLEM — Coding challenge (3 per topic: fill_blank → full_code → hard)
+// =============================================================================
+model Problem {
+  id          String   @id @default(cuid())
+  topicId     String   @map("topic_id")
+  title       String
+  description String   @db.Text
+  starterCode String?  @map("starter_code") @db.Text
+  solutionCode String  @map("solution_code") @db.Text
+  difficulty  String   @default("fill_blank") // fill_blank | full_code | hard
+  testCases   Json     @map("test_cases") // [{"input":"...","expected_output":"..."}]
+  hints       Json     @default("[]") // Premium feature
+  language    String   @default("python")
+  timeLimitSec Int     @default(5) @map("time_limit_sec")
+  memoryLimitKb Int    @default(262144) @map("memory_limit_kb")
+  order       Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  topic       Topic       @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  submissions Submission[]
+
+  @@map("problems")
+}
+
+// =============================================================================
+// PROGRESS — Tracks user progress through topics + streaks
+// =============================================================================
+model Progress {
+  id               String   @id @default(cuid())
+  userId           String   @map("user_id")
+  topicId          String   @map("topic_id")
+  lessonsCompleted Json     @default("[]") @map("lessons_completed")
+  mcqsCompleted    Json     @default("[]") @map("mcqs_completed")
+  problemsCompleted Json    @default("[]") @map("problems_completed")
+  isTopicComplete  Boolean  @default(false) @map("is_topic_complete")
+  streak           Int      @default(0)
+  longestStreak    Int      @default(0) @map("longest_streak")
+  lastActivityAt   DateTime @default(now()) @map("last_activity_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic            Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, topicId])
+  @@map("progress")
+}
+
+// =============================================================================
+// SUBMISSION — Code submission with Judge0 execution tracking
+// =============================================================================
+model Submission {
+  id              String    @id @default(cuid())
+  userId          String    @map("user_id")
+  problemId       String    @map("problem_id")
+  sourceCode      String    @map("source_code") @db.Text
+  language        String    @default("python")
+  judge0Token     String?   @map("judge0_token")
+  status          String    @default("pending") // pending|queued|processing|accepted|wrong_answer|time_limit|runtime_error|compilation_error
+  stdout          String?   @db.Text
+  stderr          String?   @db.Text
+  compileOutput   String?   @map("compile_output") @db.Text
+  executionTimeMs Float?    @map("execution_time_ms")
+  memoryUsedKb    Int?      @map("memory_used_kb")
+  testResults     Json?     @map("test_results")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  completedAt     DateTime? @map("completed_at")
+
+  // Relations
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problem         Problem   @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@map("submissions")
+}
