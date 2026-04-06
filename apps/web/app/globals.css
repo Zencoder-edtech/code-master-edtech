@@ -1,20 +1,38 @@
+/* =============================================================================
+ * Global CSS — App-wide styles that apply to every page
+ * =============================================================================
+ * 
+ * @import "tailwindcss"          → Loads Tailwind CSS utility classes
+ * @import "@repo/tailwind-config" → Loads shared Tailwind config from packages/
+ *
+ * CSS Variables:
+ *   --foreground-rgb  → Text color (black in light mode, white in dark mode)
+ *   --background-*    → Background gradient colors
+ *
+ * The @media query switches colors based on user's system preference:
+ *   Light mode: white background, black text
+ *   Dark mode:  black background, white text
+ * ============================================================================= */
+
 @import "tailwindcss";
 @import "@repo/tailwind-config";
 
 :root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
+  --foreground-rgb: 0, 0, 0;           /* Light mode: black text */
+  --background-start-rgb: 214, 219, 220; /* Light mode: light gray start */
+  --background-end-rgb: 255, 255, 255;   /* Light mode: white end */
 }
 
+/* When user's OS/browser is in dark mode, swap to dark colors */
 @media (prefers-color-scheme: dark) {
   :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
+    --foreground-rgb: 255, 255, 255;   /* Dark mode: white text */
+    --background-start-rgb: 0, 0, 0;  /* Dark mode: pure black */
     --background-end-rgb: 0, 0, 0;
   }
 }
 
+/* Apply the color variables to the body element */
 body {
   color: rgb(var(--foreground-rgb));
   background: linear-gradient(

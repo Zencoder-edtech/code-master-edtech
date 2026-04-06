@@ -1,5 +1,5 @@
 {
-  "name": "with-tailwind",
+  "name": "codemaster-edtech",
   "private": true,
   "scripts": {
     "build": "turbo run build",
