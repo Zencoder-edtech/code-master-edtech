@@ -1,19 +1,12 @@
-// =============================================================================
-// Next.js Configuration
-// =============================================================================
-// This file controls how Next.js builds and runs the web app.
-//
-// ignoreBuildErrors: true → Allows building even if TypeScript has errors.
-//   This is useful during early development but should be set to false
-//   before deploying to production.
-// =============================================================================
-
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
-  typescript: {
-    ignoreBuildErrors: true, // TODO: Set to false before production deploy
-  },
+  reactStrictMode: true,
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  silent: true,
+  org: "your-sentry-org",
+  project: "codemaster-mvp",
+});
