@@ -1,41 +1,69 @@
 // =============================================================================
-// Root Layout — The outermost wrapper for EVERY page in the app
+// Root Layout — CodeMaster MVP (Production-Ready)
 // =============================================================================
-// This file is special in Next.js App Router:
-//   - It runs on the SERVER (not in the browser)
-//   - It wraps every single page in the app
-//   - It sets the HTML lang, font, and metadata (title, description)
+// This is the top-level layout for the entire application.
 //
-// What each import does:
-//   @repo/ui/styles.css  → Shared Tailwind styles from packages/ui
-//   ./globals.css         → App-specific styles (dark/light mode)
-//   Geist font            → Modern, clean Google Font
+// Integrations wired in this file:
+//   • Sentry — initialized automatically via sentry.client.config.ts and
+//              sentry.server.config.ts (loaded by @sentry/nextjs plugin)
+//   • PostHog — initialized client-side via AnalyticsProvider (useEffect)
+//   • PWA     — manifest.json linked via metadata export; theme-color via
+//              viewport export; apple-mobile-web-app meta tags for install prompt
+//   • Font    — Geist (modern, clean Google font)
 // =============================================================================
 
-import "@repo/ui/styles.css"; // Shared design system styles
-import "./globals.css"; // App-level global styles
-import type { Metadata } from "next";
-import { Geist } from "next/font/google";
+import '@repo/ui/styles.css';
+import './globals.css';
+import type { Metadata, Viewport } from 'next';
+import { Geist } from 'next/font/google';
+import { AnalyticsProvider } from '../components/providers/analytics-provider';
 
-// Load Google's Geist font with Latin character set
-const geist = Geist({ subsets: ["latin"] });
+// Geist font (modern & clean)
+const geist = Geist({
+  subsets: ['latin'],
+  variable: '--font-geist',
+  weight: ['400', '500', '600', '700'],
+});
 
-// Metadata appears in browser tab title and search engine results
+// SEO metadata + PWA manifest
 export const metadata: Metadata = {
-  title: "CodeMaster — Learn Coding Practically",
+  title: 'CodeMaster — Learn Coding Practically',
   description:
-    "Self-paced coding platform for ages 10+. Practice with real compilers.",
+    'Self-paced coding platform for ages 10+. Real compiler, MCQs & projects.',
+  icons: {
+    icon: '/favicon.ico',
+  },
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'CodeMaster',
+  },
+  other: {
+    'mobile-web-app-capable': 'yes',
+  },
 };
 
-// This function wraps EVERY page. {children} = whatever page is being shown
+// Viewport + theme color (separated from metadata per Next.js 14+ API)
+export const viewport: Viewport = {
+  themeColor: '#3b82f6',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+};
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className={geist.className}>{children}</body>
+    <html lang="en" className="dark">
+      <body
+        className={`${geist.className} antialiased bg-zinc-950 text-zinc-100`}
+      >
+        <AnalyticsProvider>{children}</AnalyticsProvider>
+      </body>
     </html>
   );
 }
