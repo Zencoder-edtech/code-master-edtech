@@ -35,6 +35,8 @@ code-master-edtech/          ← One repo
 | **Prisma 7**       | Database ORM (Object-Relational Mapper)  | Type-safe database queries, visual schema, auto-generated client          |
 | **Supabase**       | Backend-as-a-Service (PostgreSQL + Auth) | Free tier, hosted Postgres, built-in auth, real-time                      |
 | **Judge0**         | Code execution engine                    | Runs student code safely in sandboxed containers                          |
+| **Sentry**         | Error tracking & performance monitoring  | Catches production errors with full stack traces and context              |
+| **PostHog**        | Product analytics                        | Tracks user behavior, privacy-first, self-hostable                        |
 | **TypeScript**     | Typed JavaScript                         | Catches bugs before runtime, better autocomplete                          |
 | **ESLint**         | Code linter                              | Enforces code quality rules                                               |
 | **Prettier**       | Code formatter                           | Auto-formats code to consistent style                                     |
@@ -49,24 +51,54 @@ code-master-edtech/          ← One repo
 | --------------------- | ------------------------------------------------------------------------------ |
 | `package.json`        | Monorepo name (`codemaster-edtech`), scripts (`build`/`dev`/`lint`), dev tools |
 | `pnpm-workspace.yaml` | Tells pnpm: "treat `apps/*` and `packages/*` as workspace members"             |
-| `turbo.json`          | Defines task pipeline — `build` waits for dependencies, `dev` runs forever     |
+| `turbo.json`          | Defines task pipeline — `build` waits for dependencies, `dev` runs forever. Declares `globalEnv` for `NODE_ENV` and `SENTRY_DSN` |
 | `.npmrc`              | `auto-install-peers = true` — auto-installs peer deps to avoid errors          |
 | `.env`                | **SECRETS!** Database URL, Supabase keys. **Never commit this.**               |
 | `.gitignore`          | Files Git should never track (node_modules, .env, build output)                |
 | `pnpm-lock.yaml`      | Exact dependency versions — auto-generated, committed to Git                   |
 
-### Web App Files (`apps/web/`)
+### Web App — Core Files (`apps/web/`)
 
-| File                | Purpose                                                             |
-| ------------------- | ------------------------------------------------------------------- |
-| `package.json`      | Dependencies: Next.js, React, Supabase SSR. Scripts: `dev`, `build` |
-| `next.config.ts`    | Next.js settings. Currently skips TS errors during build            |
-| `tsconfig.json`     | TypeScript config. Extends shared `nextjs.json`                     |
-| `eslint.config.js`  | ESLint config. Uses shared Next.js rules                            |
-| `postcss.config.js` | PostCSS config. Enables Tailwind CSS processing                     |
-| `app/layout.tsx`    | Root HTML wrapper — sets font, metadata, wraps all pages            |
-| `app/page.tsx`      | Homepage (currently Turborepo template — will be replaced)          |
-| `app/globals.css`   | Global styles — dark/light mode, background gradient                |
+| File                | Purpose                                                                         |
+| ------------------- | ------------------------------------------------------------------------------- |
+| `package.json`      | Dependencies: Next.js, React, Supabase, Sentry, PostHog. Scripts: `dev`, `build`, `lint`, `check-types` |
+| `next.config.ts`    | Next.js settings. Wrapped with `withSentryConfig()` for error tracking          |
+| `tsconfig.json`     | TypeScript config. Extends shared `nextjs.json`. Defines `@/*` path alias       |
+| `eslint.config.js`  | ESLint config. Uses shared Next.js rules from `@repo/eslint-config`             |
+| `postcss.config.js` | PostCSS config. Enables Tailwind CSS processing via shared config               |
+
+### Web App — Pages (`apps/web/app/`)
+
+| File                  | Purpose                                                                       |
+| --------------------- | ----------------------------------------------------------------------------- |
+| `app/layout.tsx`      | Root HTML wrapper — sets font, metadata, PWA manifest, wraps with AuthProvider + AnalyticsProvider. **Server Component** (no hooks allowed) |
+| `app/page.tsx`        | Landing page (`/`) — displays hero text + "Get Started" / "Sign In" CTA buttons |
+| `app/auth/page.tsx`   | Authentication page (`/auth`) — renders the AuthForm component                |
+| `app/home/page.tsx`   | Post-auth landing page (`/home`) — placeholder, will become the dashboard     |
+| `app/globals.css`     | Global styles — dark/light mode CSS variables, background gradient             |
+
+### Web App — Components (`apps/web/components/`)
+
+| File                                    | Purpose                                                                 |
+| --------------------------------------- | ----------------------------------------------------------------------- |
+| `components/AuthForm.tsx`               | Multi-step auth form (OTP → Verify → Password). Supports email, phone, Google, Facebook OAuth. `'use client'` component |
+| `components/providers/auth-provider.tsx` | Listens for Supabase auth state changes. Redirects to `/home` on `SIGNED_IN`. `'use client'` component |
+| `components/providers/analytics-provider.tsx` | Initializes PostHog analytics client-side via `useEffect`. `'use client'` component |
+
+### Web App — Libraries (`apps/web/lib/`)
+
+| File              | Purpose                                                                         |
+| ----------------- | ------------------------------------------------------------------------------- |
+| `lib/supabase.ts` | Creates a Supabase browser client using `@supabase/ssr`. Used in all `'use client'` components for auth and data operations |
+| `lib/posthog.ts`  | Initializes PostHog with API key from env. `autocapture: false` for children's privacy compliance |
+
+### Web App — Config Files (`apps/web/`)
+
+| File                      | Purpose                                                                 |
+| ------------------------- | ----------------------------------------------------------------------- |
+| `sentry.client.config.ts` | Sentry browser-side init. `tracesSampleRate`: 1.0 dev / 0.2 prod       |
+| `sentry.server.config.ts` | Sentry server-side init. Same rate config. Falls back to `NEXT_PUBLIC_SENTRY_DSN` |
+| `public/manifest.json`    | PWA manifest — app name, icons (192/512), theme color, standalone mode  |
 
 ### Infrastructure Package (`packages/infrastructure/`)
 
@@ -85,6 +117,88 @@ code-master-edtech/          ← One repo
 | `packages/eslint-config/`     | Shared ESLint rules (`base.js`, `next.js`, `react-internal.js`)                 |
 | `packages/tailwind-config/`   | Shared Tailwind CSS config and PostCSS setup                                    |
 | `packages/ui/`                | Shared React components (`Card`, `Gradient`)                                    |
+
+---
+
+## 🔐 Authentication Flow
+
+### How Sign Up Works
+
+```
+User visits /auth
+    ↓
+Enters email or phone → Clicks "Send OTP"
+    ↓
+Supabase sends OTP to email (or SMS in future)
+    ↓
+User enters 6-digit OTP → Clicks "Verify"
+    ↓
+OTP verified → User enters password → Clicks "Complete Sign Up"
+    ↓
+Account created → AuthProvider detects SIGNED_IN event
+    ↓
+Redirects to /home
+```
+
+### How Sign In Works
+
+```
+User visits /auth?mode=signin
+    ↓
+Enters email or phone → OTP sent → OTP verified
+    ↓
+AuthProvider detects SIGNED_IN → Redirects to /home
+```
+
+### Social OAuth (Google/Facebook)
+
+```
+User clicks "Google" or "Facebook" button
+    ↓
+Redirected to provider's login page
+    ↓
+After auth, Supabase redirects back to /home
+```
+
+### Architecture
+
+- **AuthProvider** (`components/providers/auth-provider.tsx`) — `'use client'` wrapper in layout.tsx that listens for `supabase.auth.onAuthStateChange`. Handles redirect on sign-in.
+- **AuthForm** (`components/AuthForm.tsx`) — The actual sign-up/sign-in form UI. Multi-step: input → OTP → password.
+- **Supabase Client** (`lib/supabase.ts`) — Creates a browser client using `@supabase/ssr` for cookie-based auth sessions.
+
+---
+
+## 📊 Monitoring & Analytics
+
+### Sentry (Error Tracking)
+
+| What              | Details                                                           |
+| ----------------- | ----------------------------------------------------------------- |
+| Package           | `@sentry/nextjs` + `@sentry/tracing`                             |
+| Client config     | `sentry.client.config.ts` — auto-loaded when app hydrates         |
+| Server config     | `sentry.server.config.ts` — auto-loaded for API routes/SSR        |
+| Next.js plugin    | `withSentryConfig()` in `next.config.ts`                          |
+| Sample rate (dev) | 1.0 (capture everything)                                          |
+| Sample rate (prod)| 0.2 (capture 20% to control costs)                                |
+
+### PostHog (Product Analytics)
+
+| What              | Details                                                           |
+| ----------------- | ----------------------------------------------------------------- |
+| Package           | `posthog-js`                                                      |
+| Init function     | `lib/posthog.ts` → `initPostHog()`                                |
+| Initialized in    | `AnalyticsProvider` (client component, via `useEffect`)           |
+| autocapture       | `false` — for children's data privacy compliance                  |
+| api_host          | `https://app.posthog.com`                                         |
+
+### PWA (Progressive Web App)
+
+| What              | Details                                                           |
+| ----------------- | ----------------------------------------------------------------- |
+| Manifest          | `public/manifest.json` — app name, icons, theme color             |
+| Linked via        | `metadata.manifest` in `layout.tsx`                                |
+| Theme color       | `#3b82f6` (blue) — set via `viewport.themeColor` in `layout.tsx`   |
+| Install prompt    | Enabled via `apple-mobile-web-app-capable` and `mobile-web-app-capable` meta tags |
 
 ---
 
@@ -129,6 +243,49 @@ India's Digital Personal Data Protection Act requires:
 - **Consent audit trail**: Store WHEN consent was given and parent's email
 
 These fields are in the `User` model: `age`, `isMinor`, `parentalConsent`, `parentalConsentTimestamp`, `parentalEmail`
+
+---
+
+## 🔐 Environment Variables
+
+### Root `.env` (used by Prisma/infrastructure)
+
+| Variable                        | Where It's Used              | How to Get It                                                |
+| ------------------------------- | ---------------------------- | ------------------------------------------------------------ |
+| `DATABASE_URL`                  | Prisma (database connection) | Supabase Dashboard → Settings → Database → Connection string |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Web app (Supabase client)    | Supabase Dashboard → Settings → API → Project URL            |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Web app (Supabase client)    | Supabase Dashboard → Settings → API → anon/public key        |
+| `JUDGE0_URL`                    | Code execution               | Your Oracle Cloud VM IP (configured later)                   |
+
+### Web App `.env` / `.env.local` (used by Next.js)
+
+| Variable                        | Where It's Used                      | How to Get It                                       |
+| ------------------------------- | ------------------------------------ | --------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Supabase browser client              | Supabase Dashboard → Settings → API                 |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase browser client              | Supabase Dashboard → Settings → API                 |
+| `NEXT_PUBLIC_SENTRY_DSN`        | Sentry error tracking (client+server) | Sentry Dashboard → Project → Settings → Client Keys |
+| `NEXT_PUBLIC_POSTHOG_KEY`       | PostHog analytics                    | PostHog Dashboard → Project → Settings              |
+| `NEXT_PUBLIC_POSTHOG_HOST`      | PostHog API endpoint                 | Usually `https://us.posthog.com`                     |
+| `NEXT_PUBLIC_APP_URL`           | Application URL (for redirects)      | Your Vercel/custom domain                            |
+| `DATABASE_URL`                  | Prisma (if used in web app)          | Supabase Dashboard → Database → Connection string   |
+| `JUDGE0_URL`                    | Code execution API                   | Your Oracle Cloud VM IP                              |
+
+### Vercel Environment Variables
+
+When deploying to Vercel, add ALL of these in **Settings → Environment Variables**:
+
+```
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+NEXT_PUBLIC_SENTRY_DSN
+NEXT_PUBLIC_POSTHOG_KEY
+NEXT_PUBLIC_POSTHOG_HOST
+NEXT_PUBLIC_APP_URL
+DATABASE_URL
+JUDGE0_URL
+```
+
+> ⚠️ **Never commit `.env` or `.env.local` to Git.** They are in `.gitignore` for safety.
 
 ---
 
@@ -185,36 +342,28 @@ pnpm add <package> --filter @repo/infrastructure
 
 ---
 
-## 🔐 Environment Variables
-
-Your `.env` file at the project root contains:
-
-| Variable                        | Where It's Used              | How to Get It                                                |
-| ------------------------------- | ---------------------------- | ------------------------------------------------------------ |
-| `DATABASE_URL`                  | Prisma (database connection) | Supabase Dashboard → Settings → Database → Connection string |
-| `NEXT_PUBLIC_SUPABASE_URL`      | Web app (Supabase client)    | Supabase Dashboard → Settings → API → Project URL            |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Web app (Supabase client)    | Supabase Dashboard → Settings → API → anon/public key        |
-| `JUDGE0_URL`                    | Code execution               | Your Oracle Cloud VM IP (configured later)                   |
-
-> ⚠️ **Never commit `.env` to Git.** It's in `.gitignore` for safety.
-
----
-
 ## 📋 What's Built vs What's Next
 
-### ✅ Done (Phase 1)
+### ✅ Done (Phase 1 — Infrastructure + Monitoring + Auth)
 
 1. Turborepo monorepo structure
 2. Prisma 7 with Supabase PostgreSQL
 3. 7 database models with full relations
 4. DPDP Act 2023 compliance fields
 5. All tables created in Supabase
+6. **Sentry** error tracking (client + server, conditional sample rates)
+7. **PostHog** product analytics (client-side, autocapture disabled)
+8. **PWA** manifest + meta tags (Add to Home Screen support)
+9. **Supabase Auth** — OTP-based sign up/sign in + Google/Facebook OAuth
+10. **Auth pages** — `/auth` (sign up/sign in form), `/home` (post-auth landing)
+11. **Provider architecture** — AuthProvider + AnalyticsProvider wrapping the app
+12. **Path aliases** — `@/*` configured for clean imports
 
 ### 🔲 Next (Phase 2)
 
-1. **Supabase Auth** — signup/login with email + password
-2. **Auth Pages** — signup form with age gate UI, login form
-3. **Route Protection** — middleware to redirect unauthenticated users
-4. **Seed Data** — sample Python course with topics, MCQs, problems
-5. **Code Editor** — CodeMirror (mobile) + Monaco (desktop) integration
-6. **Judge0 Integration** — submit code → run → show results
+1. **Route Protection** — middleware to redirect unauthenticated users away from protected pages
+2. **Age Gate UI** — age verification on sign-up form per DPDP Act
+3. **Seed Data** — sample Python course with topics, MCQs, problems
+4. **Code Editor** — CodeMirror (mobile) + Monaco (desktop) integration
+5. **Judge0 Integration** — submit code → run → show results
+6. **Dashboard** — replace `/home` placeholder with course list, progress tracker
