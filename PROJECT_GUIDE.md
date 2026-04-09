@@ -344,7 +344,7 @@ pnpm add <package> --filter @repo/infrastructure
 
 ## 📋 What's Built vs What's Next
 
-### ✅ Done (Phase 1 — Infrastructure + Monitoring + Auth)
+### ✅ Done (Phase 1 — Infrastructure + Monitoring + Auth + Learn)
 
 1. Turborepo monorepo structure
 2. Prisma 7 with Supabase PostgreSQL
@@ -358,12 +358,67 @@ pnpm add <package> --filter @repo/infrastructure
 10. **Auth pages** — `/auth` (sign up/sign in form), `/home` (post-auth landing)
 11. **Provider architecture** — AuthProvider + AnalyticsProvider wrapping the app
 12. **Path aliases** — `@/*` configured for clean imports
+13. **Learn page** (`/learn/[topicId]`) — tabbed UI (Concept | MCQs | Problems)
+14. **Code editors** — Monaco (desktop) + CodeMirror 6 (mobile), responsive switching
+15. **Judge0 API route** (`/api/execute`) — server-side code execution proxy
+16. **Seed data** — Python Loops topic with 3 MCQs + 3 problems (easy/medium/hard)
+17. **Domain entities** — Topic, MCQ, Problem, Submission type definitions
+18. **Use cases** — GetTopicUseCase, SubmitCodeUseCase (Clean Architecture, future use)
 
 ### 🔲 Next (Phase 2)
 
 1. **Route Protection** — middleware to redirect unauthenticated users away from protected pages
 2. **Age Gate UI** — age verification on sign-up form per DPDP Act
-3. **Seed Data** — sample Python course with topics, MCQs, problems
-4. **Code Editor** — CodeMirror (mobile) + Monaco (desktop) integration
-5. **Judge0 Integration** — submit code → run → show results
-6. **Dashboard** — replace `/home` placeholder with course list, progress tracker
+3. **Wire domain packages** — add package.json/tsconfig to domain + application packages
+4. **Database integration** — replace seed data with Supabase queries via TopicRepository
+5. **Dashboard** — replace `/home` placeholder with course list, progress tracker
+6. **More topics** — Variables, Functions, Strings, Lists, etc.
+
+---
+
+## 📖 Learn Feature Architecture
+
+### How the Learn Page Works
+
+```
+User navigates to /learn/loops-001
+    ↓
+Server Component (page.tsx) loads seed data from data/python-loops.ts
+    ↓
+Passes topic, mcqs, problems to LearnClient (client component)
+    ↓
+LearnClient renders 3 tabs:
+    ├── Concept: HTML content + video embed
+    ├── MCQs: interactive quiz with answer checking
+    └── Problems: code editor + Run Code + output panel
+                    ↓
+              User clicks "Run Code"
+                    ↓
+              POST /api/execute { code, language_id: 71 }
+                    ↓
+              API route → Judge0 ?wait=true
+                    ↓
+              Returns { stdout, stderr, status }
+                    ↓
+              Displayed in output panel
+```
+
+### Code Editor — Responsive Switching
+
+| Screen Size | Editor | Why |
+|------------|--------|-----|
+| ≥768px (Desktop) | **Monaco Editor** | VS Code engine, rich features, great keyboard experience |
+| <768px (Mobile) | **CodeMirror 6** | Lightweight, touch-friendly, works well on small screens |
+
+Both editors are loaded via `next/dynamic` with `ssr: false` to avoid server-side rendering issues (they need browser APIs like `window` and `document`).
+
+### Files Involved
+
+| File | Purpose |
+|------|---------|
+| `app/learn/[topicId]/page.tsx` | Server component — loads data, renders header |
+| `app/learn/[topicId]/learn-client.tsx` | Client component — tabs, MCQ quiz, code editor, execution |
+| `app/api/execute/route.ts` | API route — proxies code to Judge0, returns results |
+| `data/python-loops.ts` | Seed data — topic content, 3 MCQs, 3 problems |
+| `types/learn.ts` | TypeScript types for the learn feature |
+

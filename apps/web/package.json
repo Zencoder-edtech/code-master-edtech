@@ -11,11 +11,14 @@
     "check-types": "next typegen && tsc --noEmit"
   },
   "dependencies": {
+    "@codemirror/lang-python": "^6.2.1",
+    "@monaco-editor/react": "^4.7.0",
     "@repo/ui": "workspace:*",
     "@sentry/nextjs": "^10.47.0",
     "@sentry/tracing": "^7.120.4",
     "@supabase/ssr": "^0.10.0",
     "@supabase/supabase-js": "^2.101.0",
+    "@uiw/react-codemirror": "^4.25.9",
     "next": "16.2.0",
     "posthog-js": "^1.364.7",
     "react": "^19.2.0",

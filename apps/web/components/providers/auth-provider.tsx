@@ -18,11 +18,12 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     // Create a Supabase browser client instance
@@ -33,8 +34,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session) {
-        // User just signed in — redirect to the home dashboard
-        router.push('/home');
+        // Only redirect if the user is on the auth page or landing page!
+        // (Supabase sometimes fires SIGNED_IN purely on page reload)
+        if (pathname === '/auth' || pathname === '/') {
+          router.push('/home');
+        }
         // Force a refresh so Server Components re-fetch with the new auth state
         router.refresh();
       }
