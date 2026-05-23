@@ -54,3 +54,16 @@ export interface Submission {
   status: 'PENDING' | 'ACCEPTED' | 'WRONG_ANSWER' | 'ERROR';
   output?: string;
 }
+
+/** Tracks a user's progress through a topic + streak state */
+export interface Progress {
+  id: string;
+  userId: string;
+  topicId: string;
+  problemsSolved: string[];   // IDs of solved problems
+  totalProblems: number;      // total problems in the topic
+  streak: number;             // current consecutive-day streak
+  longestStreak: number;      // all-time best streak
+  lastActivityAt: Date;       // for streak calculation
+  isTopicComplete: boolean;   // true when all problems passed
+}

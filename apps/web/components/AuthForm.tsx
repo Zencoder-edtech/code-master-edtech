@@ -27,117 +27,89 @@
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
+import { loginAdmin } from '@/lib/admin-auth';
+
+const supabase = createClient();
 
 export default function AuthForm({ isSignUp = true }: { isSignUp?: boolean }) {
-  // Initialize Supabase browser client and Next.js router
-  const supabase = createClient();
   const router = useRouter();
 
-  // ---------------------------------------------------------------------------
-  // State Management
-  // step:            Controls which form section is visible (input → otp → password)
-  // emailOrPhone:    The user's email or phone number input
-  // otp:             The 6-digit one-time password entered by the user
-  // password/confirm: Password fields for sign-up flow only
-  // loading:         Disables buttons while API calls are in progress
-  // message:         Displays success or error feedback to the user
-  // ---------------------------------------------------------------------------
-  const [step, setStep] = useState<'input' | 'otp' | 'password'>('input');
-  const [emailOrPhone, setEmailOrPhone] = useState('');
-  const [otp, setOtp] = useState('');
+  const [step, setStep] = useState<'input' | 'otp'>('input');
+  
+  // Email/Password state
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  
+  // Phone OTP state
+  const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState('');
+  
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
   // ---------------------------------------------------------------------------
-  // Step 1: Send OTP to user's email or phone
-  // Detects whether input is email (contains @) or phone number.
-  // For phone, prepends +91 (India country code).
-  // shouldCreateUser: true for sign-up, false for sign-in (existing users only).
+  // Email + Password Auth
   // ---------------------------------------------------------------------------
-  const handleSendOtp = async () => {
+  const handleEmailAuth = async () => {
     setLoading(true);
     setMessage('');
 
-    const isEmail = emailOrPhone.includes('@');
+    // --- ADMIN INTERCEPTOR ---
+    if (email === process.env.NEXT_PUBLIC_ADMIN_EMAIL || email === 'polampallisaivardhan1423@gmail.com') {
+      const result = await loginAdmin(email, password);
+      if (result.success) {
+        router.push('/admin');
+      } else {
+        setMessage(result.error || 'Invalid credentials');
+      }
+      setLoading(false);
+      return;
+    }
 
-    // Supabase types require separate calls for email vs phone OTP
-    const { error } = isEmail
-      ? await supabase.auth.signInWithOtp({
-          email: emailOrPhone,
-          options: {
-            shouldCreateUser: isSignUp,
-            emailRedirectTo: `${window.location.origin}/home`,
-          },
-        })
-      : await supabase.auth.signInWithOtp({
-          phone: `+91${emailOrPhone}`,
-          options: {
-            shouldCreateUser: isSignUp,
-          },
-        });
+    if (isSignUp) {
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) setMessage(error.message);
+      else router.push('/home');
+    } else {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) setMessage(error.message);
+      else router.push('/home');
+    }
+    
+    setLoading(false);
+  };
+
+  // ---------------------------------------------------------------------------
+  // Phone OTP Auth
+  // ---------------------------------------------------------------------------
+  const handleSendPhoneOtp = async () => {
+    setLoading(true);
+    setMessage('');
+
+    const { error } = await supabase.auth.signInWithOtp({
+      phone: `+91${phone}`,
+      options: { shouldCreateUser: isSignUp },
+    });
 
     if (error) {
       setMessage(error.message);
     } else {
-      setMessage('OTP sent! Check your email (phone SMS coming later)');
+      setMessage('OTP sent to your phone!');
       setStep('otp');
     }
     setLoading(false);
   };
 
-  // ---------------------------------------------------------------------------
-  // Step 2: Verify the OTP code entered by the user
-  // On success:
-  //   - Sign Up → moves to password step (Step 3)
-  //   - Sign In → redirects to /home immediately
-  // ---------------------------------------------------------------------------
-  const handleVerifyOtp = async () => {
+  const handleVerifyPhoneOtp = async () => {
     setLoading(true);
     setMessage('');
 
-    const isEmail = emailOrPhone.includes('@');
+    const { error } = await supabase.auth.verifyOtp({
+      phone: `+91${phone}`,
+      token: otp,
+      type: 'sms',
+    });
 
-    // Supabase types require separate verify calls for email vs phone
-    const { error } = isEmail
-      ? await supabase.auth.verifyOtp({
-          email: emailOrPhone,
-          token: otp,
-          type: 'email',
-        })
-      : await supabase.auth.verifyOtp({
-          phone: `+91${emailOrPhone}`,
-          token: otp,
-          type: 'sms',
-        });
-
-    if (error) {
-      setMessage(error.message);
-    } else if (isSignUp) {
-      // Sign Up: ask user to create a password after OTP verification
-      setStep('password');
-    } else {
-      // Sign In: OTP verified, redirect to home
-      router.push('/home');
-    }
-    setLoading(false);
-  };
-
-  // ---------------------------------------------------------------------------
-  // Step 3 (Sign Up only): Set a password for the new account
-  // Uses supabase.auth.updateUser() since the user is already authenticated
-  // after OTP verification. Validates password match before calling API.
-  // ---------------------------------------------------------------------------
-  const handleSetPassword = async () => {
-    if (password !== confirmPassword) {
-      setMessage('Passwords do not match');
-      return;
-    }
-    setLoading(true);
-    setMessage('');
-
-    const { error } = await supabase.auth.updateUser({ password });
     if (error) {
       setMessage(error.message);
     } else {
@@ -147,70 +119,81 @@ export default function AuthForm({ isSignUp = true }: { isSignUp?: boolean }) {
   };
 
   // ---------------------------------------------------------------------------
-  // Social OAuth: Google / Facebook sign-in
-  // Redirects user to the provider's login page. After auth, Supabase
-  // redirects back to /home via the redirectTo option.
+  // Social OAuth
   // ---------------------------------------------------------------------------
-  const handleSocial = async (provider: 'google' | 'facebook') => {
+  const handleSocial = async (provider: 'google') => {
     await supabase.auth.signInWithOAuth({
       provider,
       options: { redirectTo: `${window.location.origin}/home` },
     });
   };
 
-  // ---------------------------------------------------------------------------
-  // Render — Multi-step form UI
-  // ---------------------------------------------------------------------------
   return (
     <div className="max-w-md mx-auto p-8 bg-white rounded-3xl shadow-2xl">
       <h1 className="text-3xl font-bold text-center mb-8 text-zinc-900">
         {isSignUp ? 'Create Account' : 'Sign In'}
       </h1>
 
-      {/* Social OAuth Buttons */}
-      <div className="grid grid-cols-2 gap-4 mb-8">
-        <button
-          onClick={() => handleSocial('google')}
-          className="flex items-center justify-center gap-3 border border-gray-300 rounded-2xl py-4 hover:bg-gray-50 text-lg font-medium text-zinc-700"
-        >
-          <span className="text-2xl">G</span> Google
-        </button>
-        <button
-          onClick={() => handleSocial('facebook')}
-          className="flex items-center justify-center gap-3 border border-gray-300 rounded-2xl py-4 hover:bg-gray-50 text-lg font-medium text-zinc-700"
-        >
-          <span className="text-2xl">f</span> Facebook
-        </button>
-      </div>
-
-      {/* Divider */}
-      <div className="text-center text-sm text-gray-500 mb-6">
-        or continue with email / phone
-      </div>
-
-      {/* Step 1: Email/Phone Input */}
-      {step === 'input' && (
+      {step === 'input' ? (
         <>
-          <input
-            type="text"
-            placeholder="Email or Phone (9876543210)"
-            value={emailOrPhone}
-            onChange={(e) => setEmailOrPhone(e.target.value)}
-            className="w-full px-6 py-5 border border-gray-300 rounded-2xl mb-6 text-lg text-zinc-900"
-          />
+          {/* Email & Password Form */}
+          <div className="mb-6">
+            <input
+              type="email"
+              placeholder="Email address"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-6 py-4 border border-gray-300 rounded-2xl mb-4 text-zinc-900"
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-6 py-4 border border-gray-300 rounded-2xl mb-4 text-zinc-900"
+            />
+            <button
+              onClick={handleEmailAuth}
+              disabled={loading || !email || !password}
+              className="w-full bg-black text-white py-4 rounded-2xl font-semibold text-lg disabled:bg-gray-400"
+            >
+              {loading ? 'Processing…' : (isSignUp ? 'Sign Up with Email' : 'Sign In with Email')}
+            </button>
+          </div>
+
+          <div className="text-center text-sm text-gray-500 mb-6">or continue with</div>
+
+          {/* Google OAuth Button */}
           <button
-            onClick={handleSendOtp}
-            disabled={loading || !emailOrPhone}
-            className="w-full bg-black text-white py-5 rounded-2xl font-semibold text-lg disabled:bg-gray-400"
+            onClick={() => handleSocial('google')}
+            className="w-full flex items-center justify-center gap-3 border border-gray-300 rounded-2xl py-4 mb-6 hover:bg-gray-50 text-lg font-medium text-zinc-700"
           >
-            {loading ? 'Sending OTP…' : 'Send OTP'}
+            <span className="text-2xl">G</span> Google
+          </button>
+
+          <div className="text-center text-sm text-gray-500 mb-6">or use phone number</div>
+
+          {/* Phone Number Input */}
+          <div className="flex gap-2 mb-4">
+            <input
+              type="text"
+              placeholder="Phone (9876543210)"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className="w-full px-6 py-4 border border-gray-300 rounded-2xl text-zinc-900"
+            />
+          </div>
+          <button
+            onClick={handleSendPhoneOtp}
+            disabled={loading || !phone}
+            className="w-full bg-zinc-800 text-white py-4 rounded-2xl font-semibold text-lg disabled:bg-gray-400"
+          >
+            {loading ? 'Sending OTP…' : 'Login with OTP'}
           </button>
         </>
-      )}
-
-      {/* Step 2: OTP Verification */}
-      {step === 'otp' && (
+      ) : (
         <>
+          {/* OTP Verification Step */}
           <div className="flex justify-center gap-4 mb-8">
             <input
               type="text"
@@ -222,38 +205,22 @@ export default function AuthForm({ isSignUp = true }: { isSignUp?: boolean }) {
             />
           </div>
           <button
-            onClick={handleVerifyOtp}
+            onClick={handleVerifyPhoneOtp}
             disabled={loading || otp.length !== 6}
             className="w-full bg-black text-white py-5 rounded-2xl font-semibold text-lg"
           >
             {loading ? 'Verifying…' : 'Verify OTP'}
           </button>
-        </>
-      )}
-
-      {/* Step 3: Password Creation (Sign Up only) */}
-      {step === 'password' && (
-        <>
-          <input
-            type="password"
-            placeholder="Create password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-6 py-5 border border-gray-300 rounded-2xl mb-4 text-zinc-900"
-          />
-          <input
-            type="password"
-            placeholder="Confirm password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            className="w-full px-6 py-5 border border-gray-300 rounded-2xl mb-8 text-zinc-900"
-          />
+          
           <button
-            onClick={handleSetPassword}
-            disabled={loading || password.length < 6}
-            className="w-full bg-black text-white py-5 rounded-2xl font-semibold text-lg"
+            onClick={() => {
+              setStep('input');
+              setOtp('');
+              setMessage('');
+            }}
+            className="w-full mt-4 text-gray-500 hover:text-black transition-colors"
           >
-            {loading ? 'Creating account…' : 'Complete Sign Up'}
+            Back to login options
           </button>
         </>
       )}

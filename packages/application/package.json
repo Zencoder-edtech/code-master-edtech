@@ -1,0 +1,13 @@
+{
+  "name": "@repo/application",
+  "version": "0.0.1",
+  "private": true,
+  "main": "use-cases/index.ts",
+  "types": "use-cases/index.ts",
+  "exports": {
+    "./use-cases/*": "./use-cases/*.ts"
+  },
+  "dependencies": {
+    "@repo/domain": "workspace:*"
+  }
+}

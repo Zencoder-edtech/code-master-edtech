@@ -7,18 +7,21 @@
 // Routes:
 //   /auth            → Sign Up form (default)
 //   /auth?mode=signin → Sign In form
-//
-// The AuthForm component handles all auth logic (OTP, password, social OAuth).
-// After successful authentication, the AuthProvider in layout.tsx listens for
-// the SIGNED_IN event and redirects the user to /home.
 // =============================================================================
 
 import AuthForm from '@/components/AuthForm';
 
-export default function AuthPage() {
+export default async function AuthPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ mode?: string }>;
+}) {
+  const { mode } = await searchParams;
+  const isSignUp = mode !== 'signin';
+
   return (
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
-      <AuthForm />
+      <AuthForm isSignUp={isSignUp} />
     </div>
   );
 }

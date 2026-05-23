@@ -29,9 +29,9 @@ export interface Problem {
   id: string;
   title: string;
   description: string;
-  starterCode?: string;
-  difficulty: 'easy' | 'medium' | 'hard';
-  testCases: Array<{ input: string; expected: string }>;
+  starterCode?: string | null;
+  difficulty: 'easy' | 'medium' | 'hard' | 'fill_blank' | 'full_code' | string;
+  testCases: Array<{ input: string; expected: string; expected_output?: string }>;
 }
 
 /** A code submission result from Judge0 */
@@ -40,4 +40,31 @@ export interface ExecutionResult {
   stderr: string | null;
   status: { id: number; description: string };
   compile_output: string | null;
+}
+
+/** Tracks a user's progress through a topic + streak state */
+export interface Progress {
+  id: string;
+  userId: string;
+  topicId: string;
+  problemsSolved: string[];   // IDs of solved problems
+  totalProblems: number;      // total problems in the topic
+  streak: number;             // current consecutive-day streak
+  longestStreak: number;      // all-time best streak
+  lastActivityAt: Date;       // for streak calculation
+  isTopicComplete: boolean;   // true when all problems passed
+}
+
+/** Dashboard view model returned by GetDashboardUseCase */
+export interface DashboardData {
+  streak: number;
+  longestStreak: number;
+  topics: Array<{
+    topicId: string;
+    topicTitle: string;
+    solved: number;
+    total: number;
+    isComplete: boolean;
+    badge: string | null;     // e.g., "Loops Master"
+  }>;
 }

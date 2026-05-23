@@ -5,40 +5,15 @@
  * @import "tailwindcss"          → Loads Tailwind CSS utility classes
  * @import "@repo/tailwind-config" → Loads shared Tailwind config from packages/
  *
- * CSS Variables:
- *   --foreground-rgb  → Text color (black in light mode, white in dark mode)
- *   --background-*    → Background gradient colors
- *
- * The @media query switches colors based on user's system preference:
- *   Light mode: white background, black text
- *   Dark mode:  black background, white text
+ * Note: All color theming is handled via Tailwind classes in layout.tsx
+ * (bg-zinc-950, text-zinc-100). No custom CSS variables needed.
  * ============================================================================= */
 
 @import "tailwindcss";
-@import "@repo/tailwind-config";
+@import "../../../packages/tailwind-config/shared-styles.css";
 
-:root {
-  --foreground-rgb: 0, 0, 0;           /* Light mode: black text */
-  --background-start-rgb: 214, 219, 220; /* Light mode: light gray start */
-  --background-end-rgb: 255, 255, 255;   /* Light mode: white end */
-}
-
-/* When user's OS/browser is in dark mode, swap to dark colors */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;   /* Dark mode: white text */
-    --background-start-rgb: 0, 0, 0;  /* Dark mode: pure black */
-    --background-end-rgb: 0, 0, 0;
-  }
-}
-
-/* Apply the color variables to the body element */
-body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+/* Streak pulse animation (used by streak-card.tsx) */
+@keyframes streakPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
 }

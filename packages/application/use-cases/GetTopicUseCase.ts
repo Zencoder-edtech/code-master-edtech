@@ -18,7 +18,7 @@
 // seed data directly until the monorepo build pipeline is wired.
 // =============================================================================
 
-import type { Topic, MCQ, Problem } from '../domain/entities';
+import type { Topic, MCQ, Problem } from '@repo/domain';
 
 /** Repository interface — any class that provides these methods can be injected */
 interface TopicRepo {

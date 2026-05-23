@@ -39,7 +39,7 @@ while count < 5:
     <h2 class="text-2xl font-bold mb-4">Key Difference</h2>
     <p><strong>for</strong> = known iterations. <strong>while</strong> = unknown iterations (repeat until condition fails).</p>
   `,
-  videoUrl: 'https://www.youtube.com/embed/dEsEaJGYAZM', // placeholder
+  videoUrl: 'https://www.youtube.com/watch?v=KWgYha0clzw', // placeholder
 };
 
 // ---------------------------------------------------------------------------
