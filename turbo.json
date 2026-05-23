@@ -1,7 +1,7 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
-  "globalEnv": ["NODE_ENV", "SENTRY_DSN", "JUDGE0_URL", "ADMIN_PASSWORD", "ADMIN_EMAIL", "DATABASE_URL"],
+  "globalEnv": ["NODE_ENV", "SENTRY_DSN", "SENTRY_AUTH_TOKEN", "JUDGE0_URL", "ADMIN_PASSWORD", "ADMIN_EMAIL", "DATABASE_URL"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
