@@ -19,13 +19,31 @@
 
 import type { NextConfig } from 'next';
 import { withSentryConfig } from '@sentry/nextjs';
+// @ts-expect-error - next-pwa does not provide TypeScript types by default
+import withPWAInit from 'next-pwa';
+
+const withPWA = withPWAInit({
+  dest: 'public',
+  register: true,
+  skipWaiting: true,
+  disable: process.env.NODE_ENV === 'development',
+});
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  serverExternalPackages: ['@prisma/client', '@prisma/client-runtime-utils', 'prisma', '@repo/infrastructure'],
+  turbopack: {
+    // Point turbopack to the monorepo root so it resolves packages correctly
+    // apps/web is 2 levels deep from the monorepo root
+    root: '../../',
+  },
 };
 
-export default withSentryConfig(nextConfig, {
+export default withSentryConfig(withPWA(nextConfig), {
   silent: true,
   org: 'your-sentry-org',
   project: 'codemaster-mvp',
+  sourcemaps: {
+    disable: !process.env.SENTRY_AUTH_TOKEN,
+  },
 });

@@ -1,23 +1,34 @@
 // =============================================================================
-// Home Page — Post-Authentication Landing Page
+// Home Page — Post-Authentication Dashboard
 // =============================================================================
-// This is where users land after signing in successfully.
-// The AuthProvider in layout.tsx redirects here on SIGNED_IN event.
+// Main dashboard where students see their streak, topic progress, earned
+// badges, and active courses. Uses simulated progress data (localStorage)
+// until the database pipeline is fully wired.
 //
-// Currently a placeholder — will be replaced with the actual dashboard
-// (course list, progress tracker, etc.) in Phase 3.
+// Sections:
+//   1. Streak Card   — 🔥 current streak + longest streak
+//   2. Topic Progress — 📊 per-topic progress bars (X/Y problems solved)
+//   3. Badges        — 🏅 earned/locked mastery badges
+//   4. Course Cards  — active courses with resume button
 // =============================================================================
 
-export default function HomePage() {
+import { DashboardNav } from '@/components/dashboard-nav';
+import { DashboardContent } from '@/components/dashboard-content';
+import { verifyAdminAccess } from '@/lib/admin-auth';
+import { redirect } from 'next/navigation';
+
+export default async function HomePage() {
+  const { isAuthorized } = await verifyAdminAccess();
+  if (isAuthorized) {
+    redirect('/admin');
+  }
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to CodeMaster</h1>
-        <p className="text-zinc-400">You are signed in! 🚀</p>
-        <p className="mt-8 text-sm text-zinc-500">
-          Python Loops topic coming in Phase 3...
-        </p>
-      </div>
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
+      {/* Top Navigation */}
+      <DashboardNav />
+
+      {/* Main Dashboard Content (Client Component for localStorage access) */}
+      <DashboardContent />
     </div>
   );
 }

@@ -1,424 +1,345 @@
-# 📚 CodeMaster EdTech — Project Guide
+# CodeMaster EdTech — Complete Project Guide
 
-> **Read this first.** This file explains how every part of the project works, so you never feel lost in your own codebase.
-
----
-
-## 🤔 What is a Monorepo?
-
-A **monorepo** is one Git repository that holds **multiple projects** (apps + shared packages). Instead of having separate repos for frontend, backend, and shared code, everything lives together.
-
-**Why?** Because shared code (like UI components, TypeScript configs, and database models) can be imported directly without publishing to npm.
-
-```
-code-master-edtech/          ← One repo
-├── apps/web/                ← App 1: Next.js frontend
-├── apps/docs/               ← App 2: Documentation (unused for now)
-├── packages/ui/             ← Shared: React components
-├── packages/infrastructure/ ← Shared: Database (Prisma + Supabase)
-├── packages/typescript-config/ ← Shared: TypeScript rules
-├── packages/eslint-config/  ← Shared: Linting rules
-└── packages/tailwind-config/← Shared: CSS/Tailwind rules
-```
+> **One document to understand every file and feature in the codebase.**
 
 ---
 
-## 🔧 Tools Used & Why
+## Table of Contents
 
-| Tool               | What it Does                             | Why We Use It                                                             |
-| ------------------ | ---------------------------------------- | ------------------------------------------------------------------------- |
-| **pnpm**           | Package manager (like npm)               | Faster, saves disk space via hard links, built-in workspace support       |
-| **Turborepo**      | Runs tasks across the monorepo           | Parallel builds, caching (only rebuilds what changed), task orchestration |
-| **Next.js 16**     | React framework for the web app          | Server-side rendering, file-based routing, API routes, great DX           |
-| **React 19**       | UI library                               | Component-based UI, latest features                                       |
-| **Tailwind CSS 4** | Utility-first CSS framework              | Fast styling without writing custom CSS files                             |
-| **Prisma 7**       | Database ORM (Object-Relational Mapper)  | Type-safe database queries, visual schema, auto-generated client          |
-| **Supabase**       | Backend-as-a-Service (PostgreSQL + Auth) | Free tier, hosted Postgres, built-in auth, real-time                      |
-| **Judge0**         | Code execution engine                    | Runs student code safely in sandboxed containers                          |
-| **Sentry**         | Error tracking & performance monitoring  | Catches production errors with full stack traces and context              |
-| **PostHog**        | Product analytics                        | Tracks user behavior, privacy-first, self-hostable                        |
-| **TypeScript**     | Typed JavaScript                         | Catches bugs before runtime, better autocomplete                          |
-| **ESLint**         | Code linter                              | Enforces code quality rules                                               |
-| **Prettier**       | Code formatter                           | Auto-formats code to consistent style                                     |
-
----
-
-## 📁 File-by-File Explanation
-
-### Root Files
-
-| File                  | Purpose                                                                        |
-| --------------------- | ------------------------------------------------------------------------------ |
-| `package.json`        | Monorepo name (`codemaster-edtech`), scripts (`build`/`dev`/`lint`), dev tools |
-| `pnpm-workspace.yaml` | Tells pnpm: "treat `apps/*` and `packages/*` as workspace members"             |
-| `turbo.json`          | Defines task pipeline — `build` waits for dependencies, `dev` runs forever. Declares `globalEnv` for `NODE_ENV` and `SENTRY_DSN` |
-| `.npmrc`              | `auto-install-peers = true` — auto-installs peer deps to avoid errors          |
-| `.env`                | **SECRETS!** Database URL, Supabase keys. **Never commit this.**               |
-| `.gitignore`          | Files Git should never track (node_modules, .env, build output)                |
-| `pnpm-lock.yaml`      | Exact dependency versions — auto-generated, committed to Git                   |
-
-### Web App — Core Files (`apps/web/`)
-
-| File                | Purpose                                                                         |
-| ------------------- | ------------------------------------------------------------------------------- |
-| `package.json`      | Dependencies: Next.js, React, Supabase, Sentry, PostHog. Scripts: `dev`, `build`, `lint`, `check-types` |
-| `next.config.ts`    | Next.js settings. Wrapped with `withSentryConfig()` for error tracking          |
-| `tsconfig.json`     | TypeScript config. Extends shared `nextjs.json`. Defines `@/*` path alias       |
-| `eslint.config.js`  | ESLint config. Uses shared Next.js rules from `@repo/eslint-config`             |
-| `postcss.config.js` | PostCSS config. Enables Tailwind CSS processing via shared config               |
-
-### Web App — Pages (`apps/web/app/`)
-
-| File                  | Purpose                                                                       |
-| --------------------- | ----------------------------------------------------------------------------- |
-| `app/layout.tsx`      | Root HTML wrapper — sets font, metadata, PWA manifest, wraps with AuthProvider + AnalyticsProvider. **Server Component** (no hooks allowed) |
-| `app/page.tsx`        | Landing page (`/`) — displays hero text + "Get Started" / "Sign In" CTA buttons |
-| `app/auth/page.tsx`   | Authentication page (`/auth`) — renders the AuthForm component                |
-| `app/home/page.tsx`   | Post-auth landing page (`/home`) — placeholder, will become the dashboard     |
-| `app/globals.css`     | Global styles — dark/light mode CSS variables, background gradient             |
-
-### Web App — Components (`apps/web/components/`)
-
-| File                                    | Purpose                                                                 |
-| --------------------------------------- | ----------------------------------------------------------------------- |
-| `components/AuthForm.tsx`               | Multi-step auth form (OTP → Verify → Password). Supports email, phone, Google, Facebook OAuth. `'use client'` component |
-| `components/providers/auth-provider.tsx` | Listens for Supabase auth state changes. Redirects to `/home` on `SIGNED_IN`. `'use client'` component |
-| `components/providers/analytics-provider.tsx` | Initializes PostHog analytics client-side via `useEffect`. `'use client'` component |
-
-### Web App — Libraries (`apps/web/lib/`)
-
-| File              | Purpose                                                                         |
-| ----------------- | ------------------------------------------------------------------------------- |
-| `lib/supabase.ts` | Creates a Supabase browser client using `@supabase/ssr`. Used in all `'use client'` components for auth and data operations |
-| `lib/posthog.ts`  | Initializes PostHog with API key from env. `autocapture: false` for children's privacy compliance |
-
-### Web App — Config Files (`apps/web/`)
-
-| File                      | Purpose                                                                 |
-| ------------------------- | ----------------------------------------------------------------------- |
-| `sentry.client.config.ts` | Sentry browser-side init. `tracesSampleRate`: 1.0 dev / 0.2 prod       |
-| `sentry.server.config.ts` | Sentry server-side init. Same rate config. Falls back to `NEXT_PUBLIC_SENTRY_DSN` |
-| `public/manifest.json`    | PWA manifest — app name, icons (192/512), theme color, standalone mode  |
-
-### Infrastructure Package (`packages/infrastructure/`)
-
-| File                    | Purpose                                                                 |
-| ----------------------- | ----------------------------------------------------------------------- |
-| `package.json`          | Dependencies: `prisma`, `@prisma/client`, `dotenv`                      |
-| `prisma.config.ts`      | Loads `.env` from monorepo root → gives DATABASE_URL to Prisma          |
-| `prisma/schema.prisma`  | **THE STAR** — defines all 7 database tables and their relationships    |
-| `src/generated/prisma/` | Auto-generated Prisma Client (gitignored, created by `prisma generate`) |
-
-### Shared Config Packages
-
-| Package                       | Purpose                                                                         |
-| ----------------------------- | ------------------------------------------------------------------------------- |
-| `packages/typescript-config/` | Shared `tsconfig.json` files (`base.json`, `nextjs.json`, `react-library.json`) |
-| `packages/eslint-config/`     | Shared ESLint rules (`base.js`, `next.js`, `react-internal.js`)                 |
-| `packages/tailwind-config/`   | Shared Tailwind CSS config and PostCSS setup                                    |
-| `packages/ui/`                | Shared React components (`Card`, `Gradient`)                                    |
+1. [What is CodeMaster?](#1-what-is-codemaster)
+2. [Architecture Overview](#2-architecture-overview)
+3. [Monorepo Structure](#3-monorepo-structure)
+4. [Root Configuration Files](#4-root-configuration-files)
+5. [Shared Packages](#5-shared-packages)
+6. [Web App — Configuration](#6-web-app--configuration)
+7. [Web App — Pages & Routes](#7-web-app--pages--routes)
+8. [Web App — Components](#8-web-app--components)
+9. [Web App — Library Files](#9-web-app--library-files)
+10. [Web App — API Routes](#10-web-app--api-routes)
+11. [Web App — Data, Types & Workers](#11-web-app--data-types--workers)
+12. [Database Schema](#12-database-schema)
+13. [Feature Walkthroughs](#13-feature-walkthroughs)
+14. [Environment Variables](#14-environment-variables)
+15. [Key Commands](#15-key-commands)
 
 ---
 
-## 🔐 Authentication Flow
+## 1. What is CodeMaster?
 
-### How Sign Up Works
+CodeMaster is an **interactive coding education platform** for students aged 10 to university level. Students learn by:
 
-```
-User visits /auth
-    ↓
-Enters email or phone → Clicks "Send OTP"
-    ↓
-Supabase sends OTP to email (or SMS in future)
-    ↓
-User enters 6-digit OTP → Clicks "Verify"
-    ↓
-OTP verified → User enters password → Clicks "Complete Sign Up"
-    ↓
-Account created → AuthProvider detects SIGNED_IN event
-    ↓
-Redirects to /home
-```
+1. **Reading concepts** (HTML-rendered lesson content)
+2. **Answering MCQs** (interactive quizzes with instant feedback)
+3. **Solving coding problems** (with a real code editor + Judge0 execution engine)
 
-### How Sign In Works
-
-```
-User visits /auth?mode=signin
-    ↓
-Enters email or phone → OTP sent → OTP verified
-    ↓
-AuthProvider detects SIGNED_IN → Redirects to /home
-```
-
-### Social OAuth (Google/Facebook)
-
-```
-User clicks "Google" or "Facebook" button
-    ↓
-Redirected to provider's login page
-    ↓
-After auth, Supabase redirects back to /home
-```
-
-### Architecture
-
-- **AuthProvider** (`components/providers/auth-provider.tsx`) — `'use client'` wrapper in layout.tsx that listens for `supabase.auth.onAuthStateChange`. Handles redirect on sign-in.
-- **AuthForm** (`components/AuthForm.tsx`) — The actual sign-up/sign-in form UI. Multi-step: input → OTP → password.
-- **Supabase Client** (`lib/supabase.ts`) — Creates a browser client using `@supabase/ssr` for cookie-based auth sessions.
+The platform also supports **schools** (B2B) with CSV-based bulk student import and DPDP Act 2023 parental consent compliance.
 
 ---
 
-## 📊 Monitoring & Analytics
+## 2. Architecture Overview
 
-### Sentry (Error Tracking)
+```mermaid
+graph TD
+    A["apps/web (Next.js 16)"] --> B["packages/infrastructure"]
+    A --> C["packages/ui"]
+    B --> D["packages/domain"]
+    E["packages/application"] --> D
+    B --> F["Prisma / PostgreSQL"]
+    B --> G["Judge0 VM"]
+    A --> H["Supabase Auth"]
+    A --> I["PostHog Analytics"]
+    A --> J["Sentry Error Tracking"]
+```
 
-| What              | Details                                                           |
-| ----------------- | ----------------------------------------------------------------- |
-| Package           | `@sentry/nextjs` + `@sentry/tracing`                             |
-| Client config     | `sentry.client.config.ts` — auto-loaded when app hydrates         |
-| Server config     | `sentry.server.config.ts` — auto-loaded for API routes/SSR        |
-| Next.js plugin    | `withSentryConfig()` in `next.config.ts`                          |
-| Sample rate (dev) | 1.0 (capture everything)                                          |
-| Sample rate (prod)| 0.2 (capture 20% to control costs)                                |
-
-### PostHog (Product Analytics)
-
-| What              | Details                                                           |
-| ----------------- | ----------------------------------------------------------------- |
-| Package           | `posthog-js`                                                      |
-| Init function     | `lib/posthog.ts` → `initPostHog()`                                |
-| Initialized in    | `AnalyticsProvider` (client component, via `useEffect`)           |
-| autocapture       | `false` — for children's data privacy compliance                  |
-| api_host          | `https://app.posthog.com`                                         |
-
-### PWA (Progressive Web App)
-
-| What              | Details                                                           |
-| ----------------- | ----------------------------------------------------------------- |
-| Manifest          | `public/manifest.json` — app name, icons, theme color             |
-| Linked via        | `metadata.manifest` in `layout.tsx`                                |
-| Theme color       | `#3b82f6` (blue) — set via `viewport.themeColor` in `layout.tsx`   |
-| Install prompt    | Enabled via `apple-mobile-web-app-capable` and `mobile-web-app-capable` meta tags |
+**Clean Architecture layers** (dependency flows inward):
+- **Domain** — Pure TypeScript interfaces (`Topic`, `MCQ`, `Problem`, `Progress`). Zero dependencies.
+- **Application** — Use cases with business logic (`GetDashboardUseCase`, `UpdateStreakUseCase`). Depends only on Domain.
+- **Infrastructure** — Concrete implementations (Prisma ORM, Judge0 client, repositories). Depends on Domain.
+- **Web App** — Next.js frontend that ties everything together.
 
 ---
 
-## 🗄️ Database Schema (7 Tables)
-
-### How the Data Flows
+## 3. Monorepo Structure
 
 ```
-Student signs up → User record created (with age gate check)
-                        │
-Student picks a course → Course → Topic (ordered list)
-                                      │
-                          ┌───────────┼───────────┐
-                          │           │           │
-                       Concept     3 MCQs    3 Problems
-                       (HTML)       │           │
-                                    │           │
-                          Student answers → Progress updated
-                          Student codes  → Submission created
-                                              │
-                                        Sent to Judge0
-                                              │
-                                        Results saved back
-```
-
-### Table Relationships
-
-- **User** → has many **Progress** records (one per topic)
-- **User** → has many **Submissions** (every code submission)
-- **Course** → has many **Topics** (ordered by `order` field)
-- **Topic** → has many **MCQs** (3 per topic)
-- **Topic** → has many **Problems** (3 per topic, fill_blank → full_code → hard)
-- **Topic** → has many **Progress** records (from different users)
-- **Problem** → has many **Submissions** (from different users)
-
-### DPDP Act 2023 Compliance
-
-India's Digital Personal Data Protection Act requires:
-
-- **Age gate**: Users under 13 cannot sign up
-- **Parental consent**: Users aged 13-17 need parent's permission
-- **Consent audit trail**: Store WHEN consent was given and parent's email
-
-These fields are in the `User` model: `age`, `isMinor`, `parentalConsent`, `parentalConsentTimestamp`, `parentalEmail`
-
----
-
-## 🔐 Environment Variables
-
-### Root `.env` (used by Prisma/infrastructure)
-
-| Variable                        | Where It's Used              | How to Get It                                                |
-| ------------------------------- | ---------------------------- | ------------------------------------------------------------ |
-| `DATABASE_URL`                  | Prisma (database connection) | Supabase Dashboard → Settings → Database → Connection string |
-| `NEXT_PUBLIC_SUPABASE_URL`      | Web app (Supabase client)    | Supabase Dashboard → Settings → API → Project URL            |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Web app (Supabase client)    | Supabase Dashboard → Settings → API → anon/public key        |
-| `JUDGE0_URL`                    | Code execution               | Your Oracle Cloud VM IP (configured later)                   |
-
-### Web App `.env` / `.env.local` (used by Next.js)
-
-| Variable                        | Where It's Used                      | How to Get It                                       |
-| ------------------------------- | ------------------------------------ | --------------------------------------------------- |
-| `NEXT_PUBLIC_SUPABASE_URL`      | Supabase browser client              | Supabase Dashboard → Settings → API                 |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase browser client              | Supabase Dashboard → Settings → API                 |
-| `NEXT_PUBLIC_SENTRY_DSN`        | Sentry error tracking (client+server) | Sentry Dashboard → Project → Settings → Client Keys |
-| `NEXT_PUBLIC_POSTHOG_KEY`       | PostHog analytics                    | PostHog Dashboard → Project → Settings              |
-| `NEXT_PUBLIC_POSTHOG_HOST`      | PostHog API endpoint                 | Usually `https://us.posthog.com`                     |
-| `NEXT_PUBLIC_APP_URL`           | Application URL (for redirects)      | Your Vercel/custom domain                            |
-| `DATABASE_URL`                  | Prisma (if used in web app)          | Supabase Dashboard → Database → Connection string   |
-| `JUDGE0_URL`                    | Code execution API                   | Your Oracle Cloud VM IP                              |
-
-### Vercel Environment Variables
-
-When deploying to Vercel, add ALL of these in **Settings → Environment Variables**:
-
-```
-NEXT_PUBLIC_SUPABASE_URL
-NEXT_PUBLIC_SUPABASE_ANON_KEY
-NEXT_PUBLIC_SENTRY_DSN
-NEXT_PUBLIC_POSTHOG_KEY
-NEXT_PUBLIC_POSTHOG_HOST
-NEXT_PUBLIC_APP_URL
-DATABASE_URL
-JUDGE0_URL
-```
-
-> ⚠️ **Never commit `.env` or `.env.local` to Git.** They are in `.gitignore` for safety.
-
----
-
-## 🧰 Commands Cheat Sheet
-
-### Daily Development
-
-```bash
-# Start the dev server (runs at localhost:3001)
-pnpm dev
-
-# Format all code with Prettier
-pnpm format
-
-# Check for lint or code errors 
-pnpm lint
-
-# Check for TypeScript errors
-pnpm check-types
-```
-
-### Database (run from packages/infrastructure/)
-
-```bash
-# Generate Prisma Client after schema changes
-npx prisma generate
-
-# Push schema changes to Supabase
-npx prisma db push
-
-# Open visual database browser
-npx prisma studio
-
-# Pull existing database schema into Prisma
-npx prisma db pull
-
-# Create a migration file (for production)
-npx prisma migrate dev --name <description>
-```
-
-### Build & Deploy
-
-```bash
-# Build everything for production
-pnpm build
-
-# Install all dependencies
-pnpm install
-
-# Add a package to a specific workspace
-pnpm add <package> --filter web
-pnpm add <package> --filter @repo/infrastructure
+code-master-edtech/
+├── .env                          # Root env vars (DATABASE_URL)
+├── package.json                  # Root scripts via Turborepo
+├── pnpm-workspace.yaml           # Workspace declaration
+├── turbo.json                    # Task pipeline config
+├── apps/
+│   └── web/                      # Main Next.js app
+│       ├── app/                   #   Pages & API routes
+│       ├── components/            #   React components
+│       ├── lib/                   #   Utility modules
+│       ├── data/                  #   Seed data
+│       ├── types/                 #   TypeScript types
+│       ├── worker/                #   Service worker (PWA)
+│       └── public/                #   Static assets
+└── packages/
+    ├── domain/                   # Pure business types
+    ├── application/              # Use case classes
+    ├── infrastructure/           # Prisma, Judge0, repositories
+    ├── ui/                       # Shared UI components
+    ├── eslint-config/            # Shared lint rules
+    ├── tailwind-config/          # Shared CSS theme
+    └── typescript-config/        # Shared tsconfig presets
 ```
 
 ---
 
-## 📋 What's Built vs What's Next
-
-### ✅ Done (Phase 1 — Infrastructure + Monitoring + Auth + Learn)
-
-1. Turborepo monorepo structure
-2. Prisma 7 with Supabase PostgreSQL
-3. 7 database models with full relations
-4. DPDP Act 2023 compliance fields
-5. All tables created in Supabase
-6. **Sentry** error tracking (client + server, conditional sample rates)
-7. **PostHog** product analytics (client-side, autocapture disabled)
-8. **PWA** manifest + meta tags (Add to Home Screen support)
-9. **Supabase Auth** — OTP-based sign up/sign in + Google/Facebook OAuth
-10. **Auth pages** — `/auth` (sign up/sign in form), `/home` (post-auth landing)
-11. **Provider architecture** — AuthProvider + AnalyticsProvider wrapping the app
-12. **Path aliases** — `@/*` configured for clean imports
-13. **Learn page** (`/learn/[topicId]`) — tabbed UI (Concept | MCQs | Problems)
-14. **Code editors** — Monaco (desktop) + CodeMirror 6 (mobile), responsive switching
-15. **Judge0 API route** (`/api/execute`) — server-side code execution proxy
-16. **Seed data** — Python Loops topic with 3 MCQs + 3 problems (easy/medium/hard)
-17. **Domain entities** — Topic, MCQ, Problem, Submission type definitions
-18. **Use cases** — GetTopicUseCase, SubmitCodeUseCase (Clean Architecture, future use)
-
-### 🔲 Next (Phase 2)
-
-1. **Route Protection** — middleware to redirect unauthenticated users away from protected pages
-2. **Age Gate UI** — age verification on sign-up form per DPDP Act
-3. **Wire domain packages** — add package.json/tsconfig to domain + application packages
-4. **Database integration** — replace seed data with Supabase queries via TopicRepository
-5. **Dashboard** — replace `/home` placeholder with course list, progress tracker
-6. **More topics** — Variables, Functions, Strings, Lists, etc.
-
----
-
-## 📖 Learn Feature Architecture
-
-### How the Learn Page Works
-
-```
-User navigates to /learn/loops-001
-    ↓
-Server Component (page.tsx) loads seed data from data/python-loops.ts
-    ↓
-Passes topic, mcqs, problems to LearnClient (client component)
-    ↓
-LearnClient renders 3 tabs:
-    ├── Concept: HTML content + video embed
-    ├── MCQs: interactive quiz with answer checking
-    └── Problems: code editor + Run Code + output panel
-                    ↓
-              User clicks "Run Code"
-                    ↓
-              POST /api/execute { code, language_id: 71 }
-                    ↓
-              API route → Judge0 ?wait=true
-                    ↓
-              Returns { stdout, stderr, status }
-                    ↓
-              Displayed in output panel
-```
-
-### Code Editor — Responsive Switching
-
-| Screen Size | Editor | Why |
-|------------|--------|-----|
-| ≥768px (Desktop) | **Monaco Editor** | VS Code engine, rich features, great keyboard experience |
-| <768px (Mobile) | **CodeMirror 6** | Lightweight, touch-friendly, works well on small screens |
-
-Both editors are loaded via `next/dynamic` with `ssr: false` to avoid server-side rendering issues (they need browser APIs like `window` and `document`).
-
-### Files Involved
+## 4. Root Configuration Files
 
 | File | Purpose |
 |------|---------|
-| `app/learn/[topicId]/page.tsx` | Server component — loads data, renders header |
-| `app/learn/[topicId]/learn-client.tsx` | Client component — tabs, MCQ quiz, code editor, execution |
-| `app/api/execute/route.ts` | API route — proxies code to Judge0, returns results |
-| `data/python-loops.ts` | Seed data — topic content, 3 MCQs, 3 problems |
-| `types/learn.ts` | TypeScript types for the learn feature |
+| [package.json](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/package.json) | Monorepo scripts (`build`, `dev`, `lint`) delegating to Turborepo. Shared deps: `turbo`, `prettier`, `pg`. |
+| [pnpm-workspace.yaml](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/pnpm-workspace.yaml) | Declares `apps/*` and `packages/*` as workspaces for `workspace:*` linking. |
+| [turbo.json](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/turbo.json) | Task pipeline: build depends on `^build`, dev is persistent/uncached. `globalEnv` lists all env vars. |
 
+---
+
+## 5. Shared Packages
+
+### packages/domain/ — Business Types
+
+| File | What It Defines |
+|------|----------------|
+| [entities.ts](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/packages/domain/entities.ts) | `Topic`, `MCQ`, `Problem`, `Submission`, `Progress` — pure interfaces, zero deps |
+
+### packages/application/ — Use Cases
+
+| File | Purpose |
+|------|---------|
+| [GetTopicUseCase.ts](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/packages/application/use-cases/GetTopicUseCase.ts) | Fetches topic + MCQs + problems from injected repository |
+| [GetDashboardUseCase.ts](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/packages/application/use-cases/GetDashboardUseCase.ts) | Aggregates streak, per-topic progress, and badges for a user |
+| [SubmitCodeUseCase.ts](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/packages/application/use-cases/SubmitCodeUseCase.ts) | Creates submission → sends to Judge0 → saves result |
+| [UpdateStreakUseCase.ts](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/packages/application/use-cases/UpdateStreakUseCase.ts) | Streak logic: same day = keep, yesterday = +1, 2+ day gap = reset to 1 |
+
+> **Note**: Use cases are not yet imported by the web app. MVP uses localStorage. Will be wired in Phase 3.
+
+### packages/infrastructure/ — Database & Services
+
+| File | Purpose |
+|------|---------|
+| [schema.prisma](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/packages/infrastructure/prisma/schema.prisma) | Complete DB schema (User, Course, Topic, MCQ, Problem, Progress, Submission) |
+| [prisma.config.ts](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/packages/infrastructure/prisma.config.ts) | Loads root `.env`, configures Prisma's database URL |
+| [src/index.ts](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/packages/infrastructure/src/index.ts) | Re-exports `PrismaClient` and model types |
+| [judge0.ts](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/packages/infrastructure/judge0.ts) | HTTP client for Judge0 code execution |
+| [TopicRepository.ts](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/packages/infrastructure/repositories/TopicRepository.ts) | Placeholder repository (throws — not yet wired to Supabase) |
+
+### packages/eslint-config/ — Lint Rules
+
+| File | Purpose |
+|------|---------|
+| [base.js](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/packages/eslint-config/base.js) | Core: ESLint recommended + TypeScript + Prettier + Turbo |
+| [next.js](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/packages/eslint-config/next.js) | Extends base with Next.js rules (React hooks, core web vitals) |
+| [react-internal.js](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/packages/eslint-config/react-internal.js) | For internal React packages (packages/ui) |
+
+### packages/tailwind-config/
+
+| File | Purpose |
+|------|---------|
+| [shared-styles.css](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/packages/tailwind-config/shared-styles.css) | Imports Tailwind + custom brand colors (`blue-1000`, `purple-1000`, `red-1000`) |
+
+### packages/typescript-config/
+
+| File | Used By |
+|------|---------|
+| [base.json](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/packages/typescript-config/base.json) | All packages (strict, ES2022, NodeNext) |
+| [nextjs.json](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/packages/typescript-config/nextjs.json) | apps/web (Bundler resolution, JSX preserve) |
+| [react-library.json](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/packages/typescript-config/react-library.json) | packages/ui (react-jsx) |
+
+---
+
+## 6. Web App — Configuration
+
+| File | Purpose |
+|------|---------|
+| [package.json](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/package.json) | Dev on port 3001. Key deps: Next.js 16, React 19, Supabase, Monaco, CodeMirror, Sentry, PostHog, Prisma |
+| [next.config.ts](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/next.config.ts) | React strict mode + Sentry wrapper + PWA wrapper + Turbopack root config |
+| [tsconfig.json](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/tsconfig.json) | Extends nextjs.json, adds `@/*` path alias, enables strictNullChecks |
+| [eslint.config.js](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/eslint.config.js) | Re-exports shared Next.js ESLint config |
+| [postcss.config.js](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/postcss.config.js) | Processes CSS through `@tailwindcss/postcss` |
+| [globals.css](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/app/globals.css) | Imports Tailwind + shared styles, defines `streakPulse` animation |
+| [sentry.client.config.ts](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/sentry.client.config.ts) | Browser-side Sentry init (100% traces in dev, 20% in prod) |
+| [sentry.server.config.ts](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/sentry.server.config.ts) | Server-side Sentry init for API routes and SSR |
+| [manifest.json](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/public/manifest.json) | PWA manifest: app name, icons, standalone display mode |
+
+---
+
+## 7. Web App — Pages & Routes
+
+### Route Map
+
+| Route | Type | File |
+|-------|------|------|
+| `/` | Server | [app/page.tsx](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/app/page.tsx) — Landing page |
+| `/auth` | Server | [app/auth/page.tsx](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/app/auth/page.tsx) — Auth form |
+| `/home` | Server | [app/home/page.tsx](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/app/home/page.tsx) — Student dashboard |
+| `/learn/[topicId]` | Server+Client | [page.tsx](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/app/learn/%5BtopicId%5D/page.tsx) + [learn-client.tsx](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/app/learn/%5BtopicId%5D/learn-client.tsx) |
+| `/admin` | Server | [app/admin/page.tsx](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/app/admin/page.tsx) — Admin home |
+| `/admin/topics` | Server | [app/admin/topics/page.tsx](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/app/admin/topics/page.tsx) |
+| `/admin/user-data` | Server | [app/admin/user-data/page.tsx](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/app/admin/user-data/page.tsx) |
+| `/admin/user-analysis` | Server | [app/admin/user-analysis/page.tsx](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/app/admin/user-analysis/page.tsx) |
+| `/school/dashboard` | Server+Client | [page.tsx](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/app/school/dashboard/page.tsx) + [csv-upload-client.tsx](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/app/school/dashboard/csv-upload-client.tsx) |
+
+### Key Pages Explained
+
+- **Landing Page (`/`)** — Hero with gradient text, animated badge, desktop/mobile screenshots, school B2B section, footer
+- **Auth Page (`/auth`)** — Multi-method: Email+Password, Google OAuth, Phone OTP. Admin interceptor redirects admin email to `/admin`
+- **Dashboard (`/home`)** — StreakCard, TopicProgress, BadgeDisplay, CourseCard. Data from localStorage (MVP)
+- **Learn Page (`/learn/[topicId]`)** — 3 tabs: Concept (HTML), MCQs (quiz), Problems (code editor + execution)
+- **Admin (`/admin/*`)** — Protected by cookie-based auth. Sidebar layout with placeholder management pages
+
+---
+
+## 8. Web App — Components
+
+### Providers
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| AuthProvider | [auth-provider.tsx](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/components/providers/auth-provider.tsx) | Listens to Supabase auth changes, redirects on SIGNED_IN |
+| AnalyticsProvider | [analytics-provider.tsx](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/components/providers/analytics-provider.tsx) | Initializes PostHog on mount |
+
+### Dashboard Components
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| DashboardNav | [dashboard-nav.tsx](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/components/dashboard-nav.tsx) | Top nav with logo + logout button |
+| DashboardContent | [dashboard-content.tsx](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/components/dashboard-content.tsx) | Full dashboard grid (streak, progress, badges, courses) |
+| StreakCard | [streak-card.tsx](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/components/streak-card.tsx) | Glassmorphism card with animated flame + streak count |
+| TopicProgress | [topic-progress.tsx](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/components/topic-progress.tsx) | Progress bar with gradient fill + solved/total |
+| BadgeDisplay | [badge-display.tsx](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/components/badge-display.tsx) | Earned (🏆 gold glow) and locked (🔒) badges grid |
+| CourseCard | [course-card.tsx](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/components/course-card.tsx) | Premium card with glow, progress bar, "Resume Learning" link |
+
+### Auth & UI Primitives
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| AuthForm | [AuthForm.tsx](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/components/AuthForm.tsx) | Multi-method auth (email, Google, phone OTP) |
+| Button | [button.tsx](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/components/ui/button.tsx) | Polymorphic button with 6 variants (shadcn/ui + CVA) |
+| Skeleton | [skeleton.tsx](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/components/ui/skeleton.tsx) | Loading placeholder |
+| Tabs | [tabs.tsx](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/components/ui/tabs.tsx) | Accessible tabs (Radix UI) |
+
+---
+
+## 9. Web App — Library Files
+
+| File | Purpose |
+|------|---------|
+| [supabase.ts](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/lib/supabase.ts) | Browser-side Supabase client (cookie-based auth via `@supabase/ssr`) |
+| [prisma.ts](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/lib/prisma.ts) | Singleton PrismaClient (global object pattern prevents connection exhaustion) |
+| [admin-auth.ts](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/lib/admin-auth.ts) | Server actions: `loginAdmin`, `logoutAdmin`, `verifyAdminAccess` (HTTP-only cookies) |
+| [posthog.ts](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/lib/posthog.ts) | PostHog init (autocapture disabled for children's privacy) |
+| [utils.ts](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/lib/utils.ts) | `cn()` — merges Tailwind classes via clsx + tailwind-merge |
+
+---
+
+## 10. Web App — API Routes
+
+| Route | Method | File | Purpose |
+|-------|--------|------|---------|
+| `/api/execute` | POST | [route.ts](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/app/api/execute/route.ts) | Proxies code to Judge0 VM, returns stdout/stderr |
+| `/api/school/bulk-create` | POST | [route.ts](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/app/api/school/bulk-create/route.ts) | Bulk creates student users from CSV data via Prisma |
+| `/api/school/consent-report` | GET | [route.ts](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/app/api/school/consent-report/route.ts) | Downloads DPDP consent CSV for a school |
+
+---
+
+## 11. Web App — Data, Types & Workers
+
+| File | Purpose |
+|------|---------|
+| [python-loops.ts](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/data/python-loops.ts) | Hardcoded seed: 1 topic, 3 MCQs, 3 problems (easy→medium→hard) |
+| [learn.ts](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/types/learn.ts) | Local types: Topic, MCQ, Problem, ExecutionResult, Progress, DashboardData |
+| [worker/index.js](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/apps/web/worker/index.js) | PWA service worker with stale-while-revalidate caching for lessons |
+
+---
+
+## 12. Database Schema
+
+Six models in [schema.prisma](file:///Users/saivardhanpolampalli/Downloads/code-master-edtech/packages/infrastructure/prisma/schema.prisma):
+
+```mermaid
+erDiagram
+    Course ||--o{ Topic : "has many"
+    Topic ||--o{ MCQ : "has many"
+    Topic ||--o{ Problem : "has many"
+    Topic ||--o{ Progress : "tracked by"
+    User ||--o{ Progress : "has"
+    User ||--o{ Submission : "makes"
+    Problem ||--o{ Submission : "receives"
+```
+
+| Model | Key Fields | Purpose |
+|-------|-----------|---------|
+| **User** | email, age, isMinor, parentalConsent, role, schoolId | Users with DPDP compliance |
+| **Course** | name, slug, language, isPublished | Course container |
+| **Topic** | courseId, title, conceptHtml, videoUrl | Learning unit |
+| **MCQ** | topicId, question, options (JSON), correctIndex | Quiz questions |
+| **Problem** | topicId, starterCode, difficulty, testCases (JSON) | Coding challenges |
+| **Progress** | userId, topicId, streak, longestStreak, isTopicComplete | Per-user tracking |
+| **Submission** | userId, problemId, sourceCode, status, stdout | Code submissions |
+
+---
+
+## 13. Feature Walkthroughs
+
+### Authentication
+```
+/auth → Email+Password | Google OAuth | Phone OTP
+     → Admin email intercepted → loginAdmin() → /admin
+     → Normal user → Supabase auth → AuthProvider → /home
+```
+
+### Learning
+```
+/home → CourseCard "Resume Learning" → /learn/python-loops
+     → [Concept] Read HTML + video
+     → [MCQs] Answer 3 questions → green/red + explanation
+     → [Problems] Code editor → Run Code → /api/execute → Judge0 → output
+```
+
+### Streak System
+```
+Dashboard load → read localStorage → compare dates
+  Same day = keep | Yesterday = +1 | 2+ days = reset to 1
+  Update longestStreak → save → display in StreakCard
+```
+
+### School Dashboard
+```
+/school/dashboard → Supabase auth check
+  Upload CSV → parse client-side → POST /api/school/bulk-create → Prisma
+  Download report → GET /api/school/consent-report → CSV file
+```
+
+---
+
+## 14. Environment Variables
+
+| Variable | Location | Purpose |
+|----------|----------|---------|
+| `DATABASE_URL` | Root `.env` | PostgreSQL connection |
+| `NEXT_PUBLIC_SUPABASE_URL` | `apps/web/.env.local` | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `apps/web/.env.local` | Supabase anon key |
+| `NEXT_PUBLIC_POSTHOG_KEY` | `apps/web/.env.local` | PostHog analytics |
+| `NEXT_PUBLIC_SENTRY_DSN` | `apps/web/.env.local` | Sentry (browser) |
+| `JUDGE0_URL` | `apps/web/.env.local` | Code execution VM |
+| `ADMIN_PASSWORD` | `apps/web/.env.local` | Admin login password |
+| `ADMIN_EMAIL` | `apps/web/.env.local` | Admin email |
+
+---
+
+## 15. Key Commands
+
+```bash
+pnpm install          # Install all dependencies
+pnpm dev              # Start dev server (port 3001)
+pnpm build            # Production build
+pnpm lint             # Lint (zero warnings enforced)
+pnpm check-types      # TypeScript type check
+pnpm format           # Format with Prettier
+```
+
+> **Status**: MVP with hardcoded seed data + localStorage. Phase 3 will wire the full database pipeline.
