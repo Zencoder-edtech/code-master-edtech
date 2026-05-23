@@ -10,6 +10,9 @@ jobs:
   verify:
     name: Code Quality & Build Checks
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: "postgresql://mock_user:mock_pass@localhost:5432/mock_db"
+      NEXTAUTH_SECRET: "mock_secret_for_ci_pipeline_verification"
 
     steps:
       - name: Checkout Codebase
@@ -21,7 +24,7 @@ jobs:
       - name: Setup Node.js Environment
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'pnpm'
 
       - name: Install Project Dependencies
@@ -32,6 +35,3 @@ jobs:
 
       - name: Run Next.js Production Build
         run: pnpm build
-        env:
-          DATABASE_URL: "postgresql://mock_user:mock_pass@localhost:5432/mock_db"
-          NEXTAUTH_SECRET: "mock_secret_for_ci_pipeline_verification"
