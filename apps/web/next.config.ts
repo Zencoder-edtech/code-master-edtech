@@ -43,4 +43,7 @@ export default withSentryConfig(withPWA(nextConfig), {
   silent: true,
   org: 'your-sentry-org',
   project: 'codemaster-mvp',
+  sourcemaps: {
+    disable: !process.env.SENTRY_AUTH_TOKEN,
+  },
 });
