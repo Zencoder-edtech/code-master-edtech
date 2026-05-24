@@ -68,12 +68,20 @@ export default function AuthForm({ isSignUp = true }: { isSignUp?: boolean }) {
 
     if (isSignUp) {
       const { error } = await supabase.auth.signUp({ email, password });
-      if (error) setMessage(error.message);
-      else router.push('/home');
+      if (error) {
+        setMessage(error.message);
+      } else {
+        router.refresh();
+        router.push('/home');
+      }
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) setMessage(error.message);
-      else router.push('/home');
+      if (error) {
+        setMessage(error.message);
+      } else {
+        router.refresh();
+        router.push('/home');
+      }
     }
     
     setLoading(false);
@@ -113,6 +121,7 @@ export default function AuthForm({ isSignUp = true }: { isSignUp?: boolean }) {
     if (error) {
       setMessage(error.message);
     } else {
+      router.refresh();
       router.push('/home');
     }
     setLoading(false);

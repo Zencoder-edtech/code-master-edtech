@@ -17,13 +17,17 @@
 
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  // Use a ref so the callback always sees the latest pathname
+  // without needing to re-subscribe the auth listener
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
 
   useEffect(() => {
     // Create a Supabase browser client instance
@@ -36,7 +40,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (event === 'SIGNED_IN' && session) {
         // Only redirect if the user is on the auth page or landing page!
         // (Supabase sometimes fires SIGNED_IN purely on page reload)
-        if (pathname === '/auth' || pathname === '/') {
+        const currentPath = pathnameRef.current;
+        if (currentPath === '/auth' || currentPath === '/') {
           router.push('/home');
         }
         // Force a refresh so Server Components re-fetch with the new auth state
@@ -48,7 +53,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       subscription.unsubscribe();
     };
-  }, [router, pathname]);
+  }, [router]); // removed pathname from deps — use ref instead
 
   return <>{children}</>;
 }
+
