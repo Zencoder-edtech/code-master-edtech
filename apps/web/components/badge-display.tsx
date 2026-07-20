@@ -1,16 +1,15 @@
 // =============================================================================
-// Badge Display Component
+// Badge Display — Light Theme, Animated
 // =============================================================================
-// Showcases earned and locked badges in a visually appealing grid.
-// Earned badges have a golden glow effect and trophy icon.
-// Locked badges are greyed out with a lock icon.
+// Bright badge cards with shimmer effects for earned badges,
+// friendly locked state for not-yet-earned ones.
 // =============================================================================
 
 'use client';
 
 interface Badge {
   topicTitle: string;
-  badge: string | null;  // null = not yet earned
+  badge: string | null;
   isComplete: boolean;
 }
 
@@ -26,19 +25,19 @@ export function BadgeDisplay({ badges }: BadgeDisplayProps) {
     <div id="badge-display">
       {/* Section header */}
       <div className="flex items-center gap-3 mb-5">
-        <div className="w-8 h-8 rounded-lg bg-yellow-500/10 flex items-center justify-center border border-yellow-500/20">
-          <span className="text-lg">🏅</span>
+        <div className="w-10 h-10 rounded-xl bg-pink-100 flex items-center justify-center border border-pink-200">
+          <span className="text-xl">🏅</span>
         </div>
         <div>
-          <h3 className="text-lg font-bold text-zinc-100">Badges</h3>
-          <p className="text-xs text-zinc-500">
-            {earned.length} earned · {locked.length} locked
+          <h3 className="text-lg font-bold text-[#1A1A2E]">Your Badges</h3>
+          <p className="text-xs text-[#9E9EB8] font-medium">
+            {earned.length} earned · {locked.length} to unlock
           </p>
         </div>
       </div>
 
       {/* Badge grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 stagger-children">
         {badges.map((b) => (
           <BadgeCard
             key={b.topicTitle}
@@ -49,8 +48,8 @@ export function BadgeDisplay({ badges }: BadgeDisplayProps) {
 
         {/* Empty state */}
         {badges.length === 0 && (
-          <div className="col-span-full text-center py-8 text-zinc-500 text-sm">
-            Complete all problems in a topic to earn your first badge!
+          <div className="col-span-full text-center py-8 text-[#9E9EB8] text-sm font-medium">
+            Complete all problems in a topic to earn your first badge! 🎯
           </div>
         )}
       </div>
@@ -69,28 +68,28 @@ function BadgeCard({
   isEarned: boolean;
 }) {
   return (
-    <div className="relative group">
-      {/* Glow effect for earned badges */}
-      {isEarned && (
-        <div className="absolute -inset-0.5 bg-gradient-to-r from-yellow-500 to-amber-500 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-500" />
-      )}
-
+    <div className="relative group card-hover">
       <div
-        className={`relative flex flex-col items-center justify-center py-5 px-4 rounded-2xl border text-center transition-all ${
+        className={`relative flex flex-col items-center justify-center py-6 px-4 rounded-2xl border-2 text-center transition-all ${
           isEarned
-            ? 'bg-zinc-900 border-yellow-500/30 hover:border-yellow-500/50'
-            : 'bg-zinc-900/50 border-zinc-800 opacity-60'
+            ? 'bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50 border-yellow-300 shadow-md shadow-yellow-100/50'
+            : 'bg-gray-50 border-gray-200'
         }`}
       >
+        {/* Shimmer overlay for earned */}
+        {isEarned && (
+          <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-transparent via-yellow-200/30 to-transparent animate-shimmer pointer-events-none" />
+        )}
+
         {/* Icon */}
-        <span className="text-3xl mb-2">
+        <span className={`text-4xl mb-2 ${isEarned ? 'animate-bounce-in' : ''}`}>
           {isEarned ? '🏆' : '🔒'}
         </span>
 
         {/* Badge name */}
         <span
           className={`text-xs font-bold leading-tight ${
-            isEarned ? 'text-yellow-400' : 'text-zinc-500'
+            isEarned ? 'text-amber-700' : 'text-gray-400'
           }`}
         >
           {title}
@@ -98,8 +97,15 @@ function BadgeCard({
 
         {/* Earned indicator */}
         {isEarned && (
-          <span className="mt-1.5 text-[10px] font-semibold text-green-400 uppercase tracking-widest">
-            Earned
+          <span className="mt-2 text-[10px] font-bold text-teal-600 uppercase tracking-widest bg-teal-100 px-2 py-0.5 rounded-full">
+            ✨ Earned
+          </span>
+        )}
+
+        {/* Locked hint */}
+        {!isEarned && (
+          <span className="mt-2 text-[10px] font-medium text-gray-400">
+            Keep learning! 💪
           </span>
         )}
       </div>

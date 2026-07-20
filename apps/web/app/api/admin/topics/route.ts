@@ -5,6 +5,42 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAdmin } from '../verify';
 
+export async function GET(req: NextRequest) {
+  const denied = await verifyAdmin();
+  if (denied) return denied;
+
+  try {
+    const { searchParams } = new URL(req.url);
+    const search = searchParams.get('search') || '';
+
+    const where = search
+      ? {
+          OR: [
+            { title: { contains: search, mode: 'insensitive' as const } },
+            { description: { contains: search, mode: 'insensitive' as const } },
+          ],
+        }
+      : {};
+
+    const topics = await prisma.topic.findMany({
+      where,
+      orderBy: [{ courseId: 'asc' }, { order: 'asc' }],
+      include: {
+        course: {
+          select: { id: true, name: true, language: true },
+        },
+        mcqs: { select: { id: true } },
+        problems: { select: { id: true } },
+      },
+    });
+
+    return NextResponse.json({ topics });
+  } catch (error) {
+    console.error('Topics GET error:', error);
+    return NextResponse.json({ error: 'Failed to fetch topics' }, { status: 500 });
+  }
+}
+
 export async function POST(req: NextRequest) {
   const denied = await verifyAdmin();
   if (denied) return denied;

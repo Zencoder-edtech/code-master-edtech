@@ -1,28 +1,42 @@
 // =============================================================================
-// Dashboard Navigation Component
+// Dashboard Navigation — Light Theme for Kids
 // =============================================================================
-// Provides the top navigation bar for the post-login dashboard.
-// Includes a logo, user avatar placeholder, and a working Logout button.
+// Bright, colorful top navigation bar with logo, greeting, and logout.
 // =============================================================================
 
 'use client';
 
-
 import { createClient } from '@/lib/supabase';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
 
-// Create once at module level — not on every render
 const supabase = createClient();
 
 export function DashboardNav() {
   const router = useRouter();
+  const pathname = usePathname();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [profileName, setProfileName] = useState('Student');
+  const [profileAvatar, setProfileAvatar] = useState('🐯');
 
-  // ---------------------------------------------------------------------------
-  // Logout handler
-  // Clears the Supabase session and safely redirects to the sign-in page.
-  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    const loadProfile = () => {
+      if (typeof window !== 'undefined') {
+        const storedName = localStorage.getItem('cm_profile_name');
+        const storedAvatar = localStorage.getItem('cm_profile_avatar');
+        if (storedName) setProfileName(storedName);
+        if (storedAvatar) setProfileAvatar(storedAvatar);
+      }
+    };
+
+    loadProfile();
+    window.addEventListener('cm_profile_updated', loadProfile);
+    return () => {
+      window.removeEventListener('cm_profile_updated', loadProfile);
+    };
+  }, []);
+
   const handleLogout = async () => {
     setIsLoggingOut(true);
     await supabase.auth.signOut();
@@ -31,29 +45,59 @@ export function DashboardNav() {
   };
 
   return (
-    <nav className="sticky top-0 z-50 w-full border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-md">
-      <div className="max-w-6xl mx-auto px-4 sm:px-8 h-16 flex items-center justify-between">
+    <nav className="sticky top-0 z-50 w-full bg-white/80 backdrop-blur-xl border-b border-zinc-200 shadow-sm">
+      <div className="max-w-4xl mx-auto px-4 sm:px-8 h-16 flex items-center justify-between">
         
         {/* Left: Logo/Brand */}
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/20">
+        <Link href="/home" className="flex items-center gap-3 hover:opacity-90 transition-all select-none">
+          <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center font-extrabold text-white shadow-sm text-sm">
             CM
           </div>
-          <span className="text-xl font-bold tracking-tight text-zinc-100 hidden sm:block">
+          <span className="text-xl font-black tracking-tight text-zinc-900 hidden sm:block">
             CodeMaster
           </span>
+        </Link>
+
+        {/* Center: Navigation Links */}
+        <div className="flex items-center gap-1 sm:gap-2">
+          <Link
+            href="/home"
+            className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
+              pathname === '/home'
+                ? 'bg-indigo-50 text-indigo-700 border border-indigo-100 shadow-sm'
+                : 'text-zinc-650 hover:text-indigo-600 hover:bg-indigo-50/30 border border-transparent'
+            }`}
+          >
+            Home
+          </Link>
+          <Link
+            href="/profile"
+            className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
+              pathname === '/profile'
+                ? 'bg-indigo-50 text-indigo-700 border border-indigo-100 shadow-sm'
+                : 'text-zinc-650 hover:text-indigo-600 hover:bg-indigo-50/30 border border-transparent'
+            }`}
+          >
+            Profile
+          </Link>
         </div>
 
-        {/* Right: Actions & User */}
-        <div className="flex items-center gap-4 border border-zinc-800 bg-zinc-900/50 rounded-full pl-4 pr-1 py-1 shadow-inner">
-          <span className="text-sm font-medium text-zinc-300 hidden sm:block">
-            Student Account
-          </span>
+        {/* Right: User Info & Logout */}
+        <div className="flex items-center gap-3">
+          <Link
+            href="/profile"
+            className="flex items-center gap-2 bg-zinc-50 hover:bg-zinc-100 transition-all border border-zinc-200 rounded-xl px-4 py-2 cursor-pointer hover:shadow-sm"
+          >
+            <span className="text-base leading-none">{profileAvatar}</span>
+            <span className="text-sm font-semibold text-zinc-700">
+              {profileName}
+            </span>
+          </Link>
           
           <button
             onClick={handleLogout}
             disabled={isLoggingOut}
-            className="bg-black hover:bg-zinc-800 text-zinc-300 hover:text-white transition-colors border border-zinc-700 px-4 py-1.5 rounded-full text-sm font-medium disabled:opacity-50"
+            className="bg-white hover:bg-zinc-50 text-zinc-700 transition-all border border-zinc-200 px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-50"
           >
             {isLoggingOut ? 'Logging out...' : 'Log out'}
           </button>

@@ -37,7 +37,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session) {
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
+        // Sync the Supabase auth user to the Prisma public.users table
+        fetch('/api/auth/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            email: session.user.email,
+            name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0]
+          })
+        }).catch(console.error);
+
         // Only redirect if the user is on the auth page or landing page!
         // (Supabase sometimes fires SIGNED_IN purely on page reload)
         const currentPath = pathnameRef.current;

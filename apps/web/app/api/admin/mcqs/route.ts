@@ -5,6 +5,46 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAdmin } from '../verify';
 
+export async function GET(req: NextRequest) {
+  const denied = await verifyAdmin();
+  if (denied) return denied;
+
+  try {
+    const { searchParams } = new URL(req.url);
+    const search = searchParams.get('search') || '';
+
+    const where = search
+      ? {
+          OR: [
+            { question: { contains: search, mode: 'insensitive' as const } },
+            { explanation: { contains: search, mode: 'insensitive' as const } },
+          ],
+        }
+      : {};
+
+    const mcqs = await prisma.mCQ.findMany({
+      where,
+      orderBy: [{ topicId: 'asc' }, { order: 'asc' }],
+      include: {
+        topic: {
+          select: {
+            id: true,
+            title: true,
+            course: {
+              select: { id: true, name: true },
+            },
+          },
+        },
+      },
+    });
+
+    return NextResponse.json({ mcqs });
+  } catch (error) {
+    console.error('MCQs GET error:', error);
+    return NextResponse.json({ error: 'Failed to fetch MCQs' }, { status: 500 });
+  }
+}
+
 export async function POST(req: NextRequest) {
   const denied = await verifyAdmin();
   if (denied) return denied;

@@ -1,14 +1,8 @@
 // =============================================================================
-// Dashboard Content — Client Component
+// Dashboard Content — Light Theme, Kid-Friendly
 // =============================================================================
-// Renders the full dashboard with streak, topic progress, badges, and courses.
-// Uses localStorage to simulate progress/streak data until the DB is wired.
-//
-// localStorage schema:
-//   cm_streak          — { streak: number, longestStreak: number, lastActivityAt: string }
-//   cm_progress_<id>   — { solved: string[], total: number, isComplete: boolean }
-//
-// On first visit, simulated seed data is written so the dashboard isn't empty.
+// Bright, colorful dashboard with animated welcome, streak, progress,
+// badges, and redesigned course cards.
 // =============================================================================
 
 'use client';
@@ -20,7 +14,7 @@ import { BadgeDisplay } from '@/components/badge-display';
 import { CourseCard } from '@/components/course-card';
 
 // ---------------------------------------------------------------------------
-// Simulated topic data (mirrors what's in python-loops.ts seed data)
+// Simulated topic data
 // ---------------------------------------------------------------------------
 const TOPICS = [
   {
@@ -31,19 +25,13 @@ const TOPICS = [
   },
 ];
 
-// ---------------------------------------------------------------------------
-// LocalStorage Keys
-// ---------------------------------------------------------------------------
 const STREAK_KEY = 'cm_streak';
 const progressKey = (topicId: string) => `cm_progress_${topicId}`;
 
-// ---------------------------------------------------------------------------
-// Types for localStorage data
-// ---------------------------------------------------------------------------
 interface StreakData {
   streak: number;
   longestStreak: number;
-  lastActivityAt: string; // ISO string
+  lastActivityAt: string;
 }
 
 interface TopicProgressData {
@@ -52,9 +40,6 @@ interface TopicProgressData {
   isComplete: boolean;
 }
 
-// ---------------------------------------------------------------------------
-// Streak calculation (mirrors UpdateStreakUseCase logic)
-// ---------------------------------------------------------------------------
 function calculateUpdatedStreak(data: StreakData): StreakData {
   const now = new Date();
   const last = new Date(data.lastActivityAt);
@@ -66,13 +51,10 @@ function calculateUpdatedStreak(data: StreakData): StreakData {
 
   let newStreak = data.streak;
   if (diffDays === 0) {
-    // Same day — keep
     newStreak = data.streak;
   } else if (diffDays === 1) {
-    // Yesterday — increment
     newStreak = data.streak + 1;
   } else {
-    // Gap ≥ 2 days — reset
     newStreak = 1;
   }
 
@@ -83,9 +65,6 @@ function calculateUpdatedStreak(data: StreakData): StreakData {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Dashboard Content Component
-// ---------------------------------------------------------------------------
 export function DashboardContent() {
   const [streakData, setStreakData] = useState<StreakData | null>(null);
   const [topicProgress, setTopicProgress] = useState<
@@ -93,7 +72,6 @@ export function DashboardContent() {
   >(new Map());
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Load and calculate streak/progress on mount
   useEffect(() => {
     // --- Streak ---
     const rawStreak = localStorage.getItem(STREAK_KEY);
@@ -103,7 +81,6 @@ export function DashboardContent() {
       const parsed: StreakData = JSON.parse(rawStreak);
       streak = calculateUpdatedStreak(parsed);
     } else {
-      // First ever visit — seed with streak of 1
       streak = {
         streak: 1,
         longestStreak: 1,
@@ -120,7 +97,6 @@ export function DashboardContent() {
       if (raw) {
         progressMap.set(topic.topicId, JSON.parse(raw));
       } else {
-        // Seed with empty progress
         const initial: TopicProgressData = {
           solved: [],
           total: topic.totalProblems,
@@ -137,20 +113,23 @@ export function DashboardContent() {
     setIsLoaded(true);
   }, []);
 
-  // Don't render until localStorage is loaded (avoids hydration mismatch)
   if (!isLoaded || !streakData) {
     return (
       <main className="flex-grow w-full max-w-6xl mx-auto px-4 sm:px-8 py-10 sm:py-16">
         <div className="animate-pulse space-y-6">
-          <div className="h-32 bg-zinc-900 rounded-3xl" />
-          <div className="h-24 bg-zinc-900 rounded-2xl" />
-          <div className="h-40 bg-zinc-900 rounded-2xl" />
+          <div className="h-12 bg-gray-100 rounded-2xl w-80" />
+          <div className="h-6 bg-gray-100 rounded-xl w-64" />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="h-40 bg-gray-100 rounded-3xl" />
+            <div className="h-40 bg-gray-100 rounded-2xl" />
+          </div>
+          <div className="h-32 bg-gray-100 rounded-2xl" />
+          <div className="h-48 bg-gray-100 rounded-3xl" />
         </div>
       </main>
     );
   }
 
-  // Build badge data
   const badgeData = TOPICS.map((topic) => {
     const progress = topicProgress.get(topic.topicId);
     return {
@@ -160,7 +139,6 @@ export function DashboardContent() {
     };
   });
 
-  // Calculate overall progress for course card
   const totalSolved = TOPICS.reduce((acc, t) => {
     const p = topicProgress.get(t.topicId);
     return acc + (p?.solved.length ?? 0);
@@ -170,78 +148,161 @@ export function DashboardContent() {
     totalProblems > 0 ? Math.round((totalSolved / totalProblems) * 100) : 0;
 
   return (
-    <main className="flex-grow w-full max-w-6xl mx-auto px-4 sm:px-8 py-10 sm:py-16">
-      {/* Welcome Section */}
+    <main className="flex-grow w-full max-w-4xl mx-auto px-4 sm:px-8 py-10 sm:py-14">
+      {/* Course Hero Banner */}
       <section className="mb-10">
-        <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight mb-4">
-          Welcome back,{' '}
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">
-            Student!
-          </span>{' '}
-          👋
-        </h1>
-        <p className="text-lg text-zinc-400 max-w-2xl">
-          Pick up right where you left off. The world of coding is waiting for
-          you.
-        </p>
-      </section>
-
-      {/* ------------------------------------------------------------------- */}
-      {/* Stats Grid — Streak + Progress Side by Side */}
-      {/* ------------------------------------------------------------------- */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
-        {/* Streak Card */}
-        <StreakCard
-          streak={streakData.streak}
-          longestStreak={streakData.longestStreak}
-        />
-
-        {/* Topic Progress Cards */}
-        <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-zinc-500 uppercase tracking-widest mb-1">
-            Topic Progress
-          </h3>
-          {TOPICS.map((topic) => {
-            const progress = topicProgress.get(topic.topicId);
-            return (
-              <TopicProgress
-                key={topic.topicId}
-                topicTitle={topic.topicTitle}
-                solved={progress?.solved.length ?? 0}
-                total={topic.totalProblems}
-                isComplete={progress?.isComplete ?? false}
-              />
-            );
-          })}
+        <div className="relative overflow-hidden rounded-2xl bg-white border border-zinc-200 p-8 sm:p-10 shadow-sm">
+          <div className="relative max-w-2xl">
+            <span className="inline-block px-3 py-1 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-full text-xs font-semibold uppercase tracking-wider mb-4">
+              Active Course
+            </span>
+            <h1 className="text-3xl font-black text-zinc-900 mb-2 tracking-tight">
+              Python Fundamentals
+            </h1>
+            <p className="text-zinc-650 text-sm sm:text-base mb-6 leading-relaxed font-medium">
+              Master Python basics: variables, loops, conditionals, lists, and functions with interactive coding problems.
+            </p>
+            
+            <div className="flex flex-col sm:flex-row sm:items-center gap-6">
+              <a
+                href="/learn/python-loops"
+                className="inline-flex items-center justify-center px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-colors shadow-sm text-sm text-center"
+              >
+                Continue Learning
+              </a>
+              
+              <div className="flex-grow max-w-xs">
+                <div className="flex justify-between text-xs font-semibold text-zinc-500 mb-1.5">
+                  <span>Progress (Loops)</span>
+                  <span>{overallPercent}%</span>
+                </div>
+                <div className="w-full bg-zinc-100 rounded-full h-2">
+                  <div 
+                    className="bg-indigo-600 h-2 rounded-full transition-all duration-1000" 
+                    style={{ width: `${overallPercent}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* ------------------------------------------------------------------- */}
-      {/* Badges Section */}
-      {/* ------------------------------------------------------------------- */}
-      <section className="mb-10">
-        <BadgeDisplay badges={badgeData} />
-      </section>
+      {/* Learning Path */}
+      <section className="relative">
+        <div className="flex items-center gap-2 mb-8 pb-3 border-b border-zinc-200">
+          <h2 className="text-xl font-bold text-zinc-900 tracking-tight">
+            Learning Path
+          </h2>
+        </div>
 
-      {/* ------------------------------------------------------------------- */}
-      {/* Courses Section */}
-      {/* ------------------------------------------------------------------- */}
-      <section>
-        <h2 className="text-2xl font-bold mb-6 text-zinc-100 border-b border-zinc-800 pb-4">
-          In Progress
-        </h2>
+        {/* Path container */}
+        <div className="relative max-w-2xl mx-auto px-4 py-4">
+          {/* Vertical connecting line */}
+          <div className="absolute left-[27px] sm:left-1/2 top-8 bottom-8 w-0.5 bg-zinc-200 transform -translate-x-1/2 rounded-full z-0" />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* 
-            Currently hardcoded to Python Fundamentals.
-            In Phase 3, this will be a .map() over the user's progress records from the DB. 
-          */}
-          <CourseCard
-            title="Python Fundamentals"
-            description="Master the basics of Python including Variables, Loops, Conditionals, and Functions."
-            topicId="python-loops"
-            progressPercent={overallPercent}
-          />
+          <div className="space-y-10 relative z-10">
+            
+            {/* Unit 1: Welcome */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 sm:gap-10">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-emerald-50 border border-emerald-300 flex items-center justify-center text-emerald-600 font-bold text-sm shadow-sm sm:mx-auto">
+                ✓
+              </div>
+              <div className="flex-1 bg-white border border-zinc-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all sm:max-w-sm">
+                <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Unit 1 · Completed</span>
+                <h3 className="text-base font-bold text-zinc-900 mt-1 mb-1.5">Introduction to Coding</h3>
+                <p className="text-xs text-zinc-500 leading-relaxed">
+                  Learn what coding is, write your very first output statements, and explore the python shell.
+                </p>
+                <div className="mt-3 flex items-center gap-1.5 text-emerald-600 font-semibold text-xs">
+                  <span>✓ 100% Completed</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Unit 2: Loops in Python */}
+            <div className="flex flex-col sm:flex-row-reverse items-start sm:items-center gap-6 sm:gap-10">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-indigo-50 border-2 border-indigo-600 flex items-center justify-center text-indigo-600 font-extrabold text-sm shadow-sm sm:mx-auto relative">
+                2
+                {overallPercent < 100 && (
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-indigo-600 rounded-full border border-white animate-pulse" />
+                )}
+              </div>
+              <div className="flex-1 bg-white border border-zinc-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all sm:max-w-sm sm:ml-auto">
+                <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">Unit 2 · In Progress</span>
+                <h3 className="text-base font-bold text-zinc-900 mt-1 mb-1.5">Loops & Iterations</h3>
+                <p className="text-xs text-zinc-500 leading-relaxed">
+                  Repeat statements easily using loops! Master `for` and `while` loop controls.
+                </p>
+                <div className="mt-3.5 flex items-center justify-between gap-4">
+                  <span className="text-xs font-semibold text-zinc-400">{overallPercent}% Complete</span>
+                  <a
+                    href="/learn/python-loops"
+                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg text-xs transition-colors shadow-sm select-none"
+                  >
+                    {overallPercent === 100 ? 'Review' : 'Continue'}
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            {/* Unit 3: Variables & Math */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 sm:gap-10">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-400 font-bold text-sm shadow-sm sm:mx-auto">
+                3
+              </div>
+              <div className="flex-1 bg-zinc-50 border border-zinc-200 rounded-2xl p-5 opacity-70 sm:max-w-sm">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Unit 3 · Locked</span>
+                <h3 className="text-base font-bold text-zinc-500 mt-1 mb-1.5">Variables & Arithmetic</h3>
+                <p className="text-xs text-zinc-400 leading-relaxed">
+                  Store numbers and text inside variables, and do math calculations to build calculator apps.
+                </p>
+              </div>
+            </div>
+
+            {/* Unit 4: Conditionals */}
+            <div className="flex flex-col sm:flex-row-reverse items-start sm:items-center gap-6 sm:gap-10">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-400 font-bold text-sm shadow-sm sm:mx-auto">
+                4
+              </div>
+              <div className="flex-1 bg-zinc-50 border border-zinc-200 rounded-2xl p-5 opacity-70 sm:max-w-sm sm:ml-auto">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Unit 4 · Locked</span>
+                <h3 className="text-base font-bold text-zinc-500 mt-1 mb-1.5">Conditional Statements</h3>
+                <p className="text-xs text-zinc-400 leading-relaxed">
+                  Make your programs make decisions using `if`, `elif`, and `else` conditions.
+                </p>
+              </div>
+            </div>
+
+            {/* Unit 5: Lists */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 sm:gap-10">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-400 font-bold text-sm shadow-sm sm:mx-auto">
+                5
+              </div>
+              <div className="flex-1 bg-zinc-50 border border-zinc-200 rounded-2xl p-5 opacity-70 sm:max-w-sm">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Unit 5 · Locked</span>
+                <h3 className="text-base font-bold text-zinc-500 mt-1 mb-1.5">Lists & Arrays</h3>
+                <p className="text-xs text-zinc-400 leading-relaxed">
+                  Learn to store collections of data in Lists and sort/filter them using Python.
+                </p>
+              </div>
+            </div>
+
+            {/* Unit 6: Functions */}
+            <div className="flex flex-col sm:flex-row-reverse items-start sm:items-center gap-6 sm:gap-10">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-400 font-bold text-sm shadow-sm sm:mx-auto">
+                6
+              </div>
+              <div className="flex-1 bg-zinc-50 border border-zinc-200 rounded-2xl p-5 opacity-70 sm:max-w-sm sm:ml-auto">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Unit 6 · Locked</span>
+                <h3 className="text-base font-bold text-zinc-500 mt-1 mb-1.5">Functions & Modules</h3>
+                <p className="text-xs text-zinc-400 leading-relaxed">
+                  Write reusable blocks of code called functions, import helper libraries, and build mini-projects.
+                </p>
+              </div>
+            </div>
+            
+          </div>
         </div>
       </section>
     </main>

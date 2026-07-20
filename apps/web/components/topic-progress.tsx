@@ -1,9 +1,7 @@
 // =============================================================================
-// Topic Progress Component
+// Topic Progress — Light Theme, Animated
 // =============================================================================
-// Displays per-topic progress with a gradient progress bar, solved/total
-// count, and a completion checkmark. Used on the dashboard to show how
-// far along the student is in each topic.
+// Colorful progress bar with animated fill for each learning topic.
 // =============================================================================
 
 interface TopicProgressProps {
@@ -23,7 +21,11 @@ export function TopicProgress({
 
   return (
     <div
-      className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 sm:p-6 hover:border-zinc-700 transition-colors"
+      className={`bg-white border-2 rounded-2xl p-5 sm:p-6 transition-all card-hover ${
+        isComplete
+          ? 'border-teal-200 shadow-teal-100/50'
+          : 'border-gray-100 shadow-sm'
+      }`}
       id={`topic-progress-${topicTitle.toLowerCase().replace(/\s+/g, '-')}`}
     >
       {/* Header row */}
@@ -31,15 +33,15 @@ export function TopicProgress({
         <div className="flex items-center gap-3 min-w-0">
           {/* Completion indicator */}
           <div
-            className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold ${
+            className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold ${
               isComplete
-                ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                ? 'bg-teal-100 text-teal-600 border border-teal-200'
+                : 'bg-purple-100 text-purple-600 border border-purple-200'
             }`}
           >
             {isComplete ? '✓' : '📖'}
           </div>
-          <h4 className="text-base font-semibold text-zinc-100 truncate">
+          <h4 className="text-base font-bold text-[#1A1A2E] truncate">
             {topicTitle}
           </h4>
         </div>
@@ -48,8 +50,8 @@ export function TopicProgress({
         <span
           className={`flex-shrink-0 text-xs font-bold px-3 py-1.5 rounded-full ${
             isComplete
-              ? 'bg-green-500/15 text-green-400 border border-green-500/25'
-              : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
+              ? 'bg-teal-100 text-teal-700 border border-teal-200'
+              : 'bg-purple-50 text-purple-600 border border-purple-200'
           }`}
         >
           {solved}/{total} solved
@@ -57,30 +59,34 @@ export function TopicProgress({
       </div>
 
       {/* Progress bar */}
-      <div className="w-full bg-zinc-800 rounded-full h-2.5 shadow-inner overflow-hidden">
+      <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
         <div
-          className={`h-2.5 rounded-full relative transition-all duration-700 ease-out ${
+          className={`h-3 rounded-full relative transition-all duration-700 ease-out animate-progress-fill ${
             isComplete
-              ? 'bg-gradient-to-r from-green-500 to-emerald-400'
-              : 'bg-gradient-to-r from-blue-500 to-purple-600'
+              ? 'bg-gradient-to-r from-teal-400 to-emerald-400'
+              : 'bg-gradient-to-r from-purple-500 to-pink-500'
           }`}
           style={{ width: `${percent}%` }}
         >
           {/* Gleam highlight */}
-          <div className="absolute top-0 inset-x-0 h-[1px] bg-white/30" />
+          <div className="absolute top-0 inset-x-0 h-[1px] bg-white/50" />
         </div>
       </div>
 
       {/* Bottom text */}
-      <p className="text-xs text-zinc-500 mt-2.5">
+      <p className="text-xs mt-2.5 font-medium">
         {isComplete ? (
-          <span className="text-green-400 font-medium">
-            🎉 Topic mastered!
+          <span className="text-teal-600">
+            🎉 Topic mastered! You&apos;re awesome!
           </span>
         ) : percent > 0 ? (
-          `${100 - percent}% remaining — keep going!`
+          <span className="text-purple-500">
+            {100 - percent}% remaining — keep going! 💪
+          </span>
         ) : (
-          'Not started yet'
+          <span className="text-gray-400">
+            Not started yet — let&apos;s begin! 🚀
+          </span>
         )}
       </p>
     </div>

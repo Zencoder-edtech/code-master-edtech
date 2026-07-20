@@ -1,18 +1,8 @@
 // =============================================================================
-// Learn Topic Page — /learn/[topicId]
+// Learn Topic Page — /learn/[topicId] (Light Theme)
 // =============================================================================
-// This is the main learning page where students study concepts, answer MCQs,
-// and solve coding problems. It uses tabbed navigation (Concept | MCQs | Problems).
-//
-// Architecture:
-//   - Server Component (this file) fetches topic data and passes to client
-//   - LearnClient (below) handles all interactive UI
-//   - Code editor: Monaco on desktop (≥768px), CodeMirror on mobile (<768px)
-//   - Code execution: calls /api/execute → Judge0
-//
-// Data Source:
-//   Currently uses hardcoded seed data from data/python-loops.ts.
-//   Will be replaced with Supabase queries via TopicRepository in Phase 3.
+// Server Component that fetches topic data, renders light theme header,
+// and passes data to LearnClient.
 // =============================================================================
 
 import {
@@ -24,9 +14,6 @@ import { prisma } from '@/lib/prisma';
 import { LearnClient } from './learn-client';
 import type { Topic, MCQ, Problem } from '@/types/learn';
 
-// ---------------------------------------------------------------------------
-// Server Component — Fetches data from database with offline resilience
-// ---------------------------------------------------------------------------
 export default async function LearnTopicPage({
   params,
 }: {
@@ -40,7 +27,6 @@ export default async function LearnTopicPage({
   let isServerOffline = false;
 
   try {
-    // Attempt to query Postgres via Prisma
     const dbTopic = await prisma.topic.findFirst({
       where: {
         OR: [
@@ -59,7 +45,6 @@ export default async function LearnTopicPage({
     });
 
     if (dbTopic) {
-      // Map database MCQ structure (JSON array + correctIndex) to UI structure ({ text, isCorrect })
       const mappedMCQs = dbTopic.mcqs.map((m) => {
         let opts: string[] = [];
         try {
@@ -78,7 +63,6 @@ export default async function LearnTopicPage({
         };
       });
 
-      // Map database Problems
       const mappedProblems = dbTopic.problems.map((p) => {
         let cases: Array<{ input?: string; expected?: string; expected_output?: string }> = [];
         try {
@@ -112,13 +96,11 @@ export default async function LearnTopicPage({
       mcqs = mappedMCQs;
       problems = mappedProblems;
     } else {
-      // If topicId is loops or python-loops, fall back to our local loops seed data
       if (topicId === 'loops' || topicId === 'python-loops' || topicId === 'loops-001') {
         topic = pythonLoopsTopic;
         mcqs = pythonLoopsMCQs;
         problems = pythonLoopsProblems;
       } else {
-        // Not found - let client handle or show offline/fallback lists
         isServerOffline = true;
       }
     }
@@ -126,37 +108,38 @@ export default async function LearnTopicPage({
     console.warn('Prisma fetch failed, entering local/offline fallback mode:', error);
     isServerOffline = true;
 
-    // Fall back to pythonLoopsTopic for loops URL if offline
     if (topicId === 'loops' || topicId === 'python-loops' || topicId === 'loops-001') {
       topic = pythonLoopsTopic;
       mcqs = pythonLoopsMCQs;
       problems = pythonLoopsProblems;
-      isServerOffline = false; // We have a complete fallback, we can treat it as offline mode inside the client
+      isServerOffline = false;
     }
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+    <div className="min-h-screen bg-gradient-to-b from-purple-50/30 via-white to-white">
       {/* Header */}
-      <header className="border-b border-zinc-800 px-4 py-4 sm:px-8">
+      <header className="bg-white/80 backdrop-blur-xl border-b border-gray-100 px-4 py-4 sm:px-8 sticky top-0 z-40">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div>
             <a
               href="/home"
-              className="text-sm text-zinc-500 hover:text-zinc-300 transition"
+              className="inline-flex items-center gap-1 text-sm text-purple-500 hover:text-purple-700 transition font-semibold mb-1"
             >
-              ← Back to Home
+              <span>←</span> Back to Dashboard
             </a>
-            <h1 className="text-2xl sm:text-3xl font-bold mt-1">
+            <h1 className="text-xl sm:text-2xl font-extrabold text-[#1A1A2E]">
               {topic?.title || 'Learning Topic'}
             </h1>
-            <p className="text-zinc-400 text-sm mt-1">
+            <p className="text-[#9E9EB8] text-xs sm:text-sm mt-0.5 font-medium">
               {topic?.description || 'Learn and solve challenges at your own pace.'}
             </p>
           </div>
-          <span className="hidden sm:block text-xs text-zinc-600 font-mono">
-            SLUG: {topicId}
-          </span>
+          <div className="hidden sm:flex items-center gap-2">
+            <span className="text-xs font-bold text-purple-500 bg-purple-50 px-3 py-1.5 rounded-lg border border-purple-100">
+              📚 Interactive Lesson
+            </span>
+          </div>
         </div>
       </header>
 

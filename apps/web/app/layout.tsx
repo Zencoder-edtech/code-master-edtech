@@ -1,21 +1,12 @@
 // =============================================================================
-// Root Layout — CodeMaster MVP (Production-Ready)
+// Root Layout — CodeMaster (Light Theme for Kids)
 // =============================================================================
-// This is the top-level layout that wraps every page in the application.
-// It is a SERVER COMPONENT — hooks like useEffect/useState are NOT allowed here.
+// Top-level layout wrapping every page. SERVER COMPONENT.
 //
-// Integrations wired in this file:
-//   • Sentry     — auto-initialized via sentry.client.config.ts and
-//                   sentry.server.config.ts (loaded by @sentry/nextjs plugin)
-//   • PostHog    — initialized client-side via AnalyticsProvider (useEffect)
-//   • Supabase   — auth state listener via AuthProvider (useEffect)
-//   • PWA        — manifest.json linked via metadata; theme-color via viewport
-//   • Font       — Geist (modern, clean Google font)
-//
-// Architecture Note:
-//   layout.tsx MUST be a Server Component to export `metadata` and `viewport`.
-//   All client-side logic (auth listener, analytics init) lives in dedicated
-//   'use client' provider components that wrap {children}.
+// Integrations:
+//   • Sentry, PostHog, Supabase (unchanged)
+//   • PWA manifest, Font (Geist body + Fredoka headings)
+//   • Light theme: white background, dark text
 // =============================================================================
 
 import '@repo/ui/styles.css';
@@ -27,8 +18,7 @@ import { AuthProvider } from '@/components/providers/auth-provider';
 
 // ---------------------------------------------------------------------------
 // Font Configuration
-// Geist is a modern sans-serif font from Vercel, designed for readability
-// on screens. We load weights 400–700 for body text through headings.
+// Geist — Modern sans-serif for body text
 // ---------------------------------------------------------------------------
 const geist = Geist({
   subsets: ['latin'],
@@ -38,8 +28,6 @@ const geist = Geist({
 
 // ---------------------------------------------------------------------------
 // SEO Metadata + PWA Manifest
-// This generates <title>, <meta description>, <link rel="manifest">, and
-// apple-mobile-web-app meta tags in the <head> of every page.
 // ---------------------------------------------------------------------------
 export const metadata: Metadata = {
   title: 'CodeMaster — Learn Coding Practically',
@@ -61,11 +49,9 @@ export const metadata: Metadata = {
 
 // ---------------------------------------------------------------------------
 // Viewport Configuration
-// themeColor sets the browser chrome color on mobile devices.
-// Separated from metadata per Next.js 14+ API requirements.
 // ---------------------------------------------------------------------------
 export const viewport: Viewport = {
-  themeColor: '#3b82f6',
+  themeColor: '#7C3AED',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
@@ -73,8 +59,7 @@ export const viewport: Viewport = {
 
 // ---------------------------------------------------------------------------
 // Root Layout Component
-// Renders the <html> and <body> tags, applies the font, and wraps all pages
-// with AuthProvider (auth state listener) and AnalyticsProvider (PostHog).
+// Light theme: white background, dark text for kid-friendly UI
 // ---------------------------------------------------------------------------
 export default function RootLayout({
   children,
@@ -82,9 +67,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <body
-        className={`${geist.className} antialiased bg-zinc-950 text-zinc-100`}
+        className={`${geist.className} antialiased bg-white text-[#1A1A2E]`}
       >
         <AuthProvider>
           <AnalyticsProvider>{children}</AnalyticsProvider>

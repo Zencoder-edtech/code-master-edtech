@@ -1,8 +1,8 @@
 // =============================================================================
-// Course Card Component
+// Course Card — Total Redesign for Kids
 // =============================================================================
-// Premium UI component displaying a user's course progress and a quick link
-// to jump right back into learning. Features glassmorphism and gradients.
+// Interactive, colorful course card with circular progress ring,
+// topic chips, and animated "Continue Learning" button.
 // =============================================================================
 
 import Link from 'next/link';
@@ -20,55 +20,107 @@ export function CourseCard({
   topicId,
   progressPercent,
 }: CourseCardProps) {
+  const circumference = 2 * Math.PI * 36; // radius 36
+  const strokeDashoffset = circumference - (progressPercent / 100) * circumference;
+
   return (
-    <div className="group relative w-full sm:max-w-md">
-      {/* Animated glow effect behind the card */}
-      <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-purple-600 rounded-3xl blur opacity-25 group-hover:opacity-60 transition duration-1000 group-hover:duration-200"></div>
-      
+    <div className="group relative w-full card-hover">
       {/* Card Content */}
-      <div className="relative flex flex-col h-full bg-zinc-900 border border-zinc-800 rounded-3xl p-6 sm:p-8 hover:bg-zinc-900/80 transition-colors">
+      <div className="relative flex flex-col sm:flex-row items-stretch bg-white border-2 border-purple-100 rounded-3xl overflow-hidden shadow-sm hover:shadow-lg hover:border-purple-200 transition-all">
         
-        {/* Header Block */}
-        <div className="flex justify-between items-start mb-6">
-          <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20 shadow-inner">
-            {/* Simple python-esque icon / placeholder */}
-            <span className="text-2xl">🐍</span>
+        {/* Left: Visual Section */}
+        <div className="sm:w-48 flex-shrink-0 bg-gradient-to-br from-purple-500 via-purple-600 to-pink-500 p-6 flex flex-col items-center justify-center gap-3 relative overflow-hidden">
+          {/* Decorative shapes */}
+          <div className="absolute top-2 right-2 w-8 h-8 bg-white/10 rounded-full" />
+          <div className="absolute bottom-4 left-2 w-5 h-5 bg-white/10 rounded-full" />
+          <div className="absolute top-1/2 right-6 w-3 h-3 bg-white/15 rounded-full" />
+
+          {/* Course icon */}
+          <div className="relative">
+            {/* Circular Progress Ring */}
+            <svg width="88" height="88" viewBox="0 0 88 88" className="transform -rotate-90">
+              <circle
+                cx="44" cy="44" r="36"
+                fill="none"
+                stroke="rgba(255,255,255,0.2)"
+                strokeWidth="5"
+              />
+              <circle
+                cx="44" cy="44" r="36"
+                fill="none"
+                stroke="white"
+                strokeWidth="5"
+                strokeLinecap="round"
+                strokeDasharray={circumference}
+                strokeDashoffset={strokeDashoffset}
+                className="transition-all duration-1000 ease-out"
+              />
+            </svg>
+            {/* Icon in center */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-3xl">🐍</span>
+            </div>
           </div>
-          <span className="text-xs font-semibold px-3 py-1 bg-green-500/10 text-green-400 rounded-full border border-green-500/20">
-            In Progress
+
+          {/* Progress text */}
+          <span className="text-white/90 text-xs font-bold tracking-wider">
+            {progressPercent}% DONE
           </span>
         </div>
 
-        {/* Text Block */}
-        <h3 className="text-2xl font-bold text-zinc-100 mb-2">{title}</h3>
-        <p className="text-zinc-400 text-sm leading-relaxed mb-8 flex-grow">
-          {description}
-        </p>
+        {/* Right: Info Section */}
+        <div className="flex-1 p-6 sm:p-8 flex flex-col justify-between">
+          <div>
+            {/* Status tag */}
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-xs font-bold px-3 py-1 bg-teal-100 text-teal-700 rounded-full border border-teal-200">
+                {progressPercent > 0 ? '📚 In Progress' : '🆕 Not Started'}
+              </span>
+            </div>
 
-        {/* Progress Bar */}
-        <div className="mb-8">
-          <div className="flex justify-between text-sm font-medium mb-2">
-            <span className="text-zinc-300">Course Progress</span>
-            <span className="text-blue-400">{progressPercent}%</span>
-          </div>
-          <div className="w-full bg-zinc-800 rounded-full h-2 shadow-inner overflow-hidden">
-            <div
-              className="bg-gradient-to-r from-blue-500 to-purple-600 h-2 rounded-full relative"
-              style={{ width: `${progressPercent}%` }}
-            >
-              {/* Highlight gleam on the progress bar */}
-              <div className="absolute top-0 inset-x-0 h-[1px] bg-white/30"></div>
+            {/* Title */}
+            <h3 className="text-xl font-extrabold text-[#1A1A2E] mb-2 group-hover:text-purple-700 transition-colors">
+              {title}
+            </h3>
+
+            {/* Description */}
+            <p className="text-sm text-[#64648B] leading-relaxed mb-4">
+              {description}
+            </p>
+
+            {/* Topic chips */}
+            <div className="flex flex-wrap gap-2 mb-6">
+              {['Variables', 'Loops', 'Conditionals', 'Functions'].map((chip) => (
+                <span
+                  key={chip}
+                  className="text-[11px] font-semibold px-2.5 py-1 bg-purple-50 text-purple-600 rounded-lg border border-purple-100"
+                >
+                  {chip}
+                </span>
+              ))}
             </div>
           </div>
-        </div>
 
-        {/* Action Button */}
-        <Link
-          href={`/learn/${topicId}`}
-          className="w-full relative inline-flex items-center justify-center py-4 px-6 font-semibold bg-white text-zinc-950 hover:bg-zinc-200 transition-all rounded-2xl shadow-[0_0_20px_rgba(255,255,255,0.1)] active:scale-[0.98]"
-        >
-          Resume Learning
-        </Link>
+          {/* Progress bar + CTA */}
+          <div>
+            {/* Thin progress bar */}
+            <div className="w-full bg-gray-100 rounded-full h-2 mb-4 overflow-hidden">
+              <div
+                className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full animate-progress-fill"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+
+            {/* Action Button */}
+            <Link
+              href={`/learn/${topicId}`}
+              className="w-full relative inline-flex items-center justify-center py-3.5 px-6 font-bold text-white bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-700 hover:to-pink-600 transition-all rounded-2xl shadow-lg shadow-purple-500/20 active:scale-[0.98] text-sm group/btn"
+            >
+              {progressPercent > 0 ? 'Continue Learning' : 'Start Learning'}
+              <span className="ml-2 group-hover/btn:translate-x-1 transition-transform">→</span>
+            </Link>
+          </div>
+        </div>
       </div>
     </div>
   );
