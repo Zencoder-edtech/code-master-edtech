@@ -22,29 +22,52 @@ export async function POST(req: Request) {
   }
 
   try {
-    // -------------------------------------------------------------------------
-    // PRESET: Clean Wipe
-    // -------------------------------------------------------------------------
-    if (preset === 'clean-wipe') {
-      await prisma.submission.deleteMany({});
-      await prisma.mCQ.deleteMany({});
-      await prisma.problem.deleteMany({});
-      await prisma.topic.deleteMany({});
-      await prisma.course.deleteMany({});
-      await prisma.user.deleteMany({
-        where: {
-          NOT: {
-            email: 'polampallisaivardhan1423@gmail.com', // preserve super admin
-          },
-        },
-      });
+    // Ensure the Supabase sync trigger is always active in the PostgreSQL database
+    await prisma.$executeRawUnsafe(`
+      CREATE OR REPLACE FUNCTION public.sync_auth_user_to_public()
+      RETURNS TRIGGER AS $$
+      BEGIN
+        INSERT INTO public.users (
+          id,
+          email,
+          name,
+          age,
+          is_minor,
+          parental_consent,
+          role,
+          subscription_tier,
+          created_at,
+          updated_at
+        ) VALUES (
+          NEW.id::text,
+          NEW.email,
+          COALESCE(NEW.raw_user_meta_data->>'full_name', SPLIT_PART(NEW.email, '@', 1)),
+          18,
+          FALSE,
+          FALSE,
+          'student',
+          'free',
+          NOW(),
+          NOW()
+        )
+        ON CONFLICT (email) DO UPDATE
+        SET id = EXCLUDED.id,
+            updated_at = NOW();
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql SECURITY DEFINER;
+    `);
 
-      return NextResponse.json({
-        success: true,
-        message: '🧹 Successfully wiped all course material, problems, submissions, and non-admin users.',
-        seeded: { courses: 0, topics: 0, mcqs: 0, problems: 0, users: 0 },
-      });
-    }
+    await prisma.$executeRawUnsafe(`
+      DROP TRIGGER IF EXISTS tr_sync_auth_user ON auth.users;
+    `);
+
+    await prisma.$executeRawUnsafe(`
+      CREATE TRIGGER tr_sync_auth_user
+      AFTER INSERT ON auth.users
+      FOR EACH ROW
+      EXECUTE FUNCTION public.sync_auth_user_to_public();
+    `);
 
     // -------------------------------------------------------------------------
     // PRESET: JavaScript Algorithms

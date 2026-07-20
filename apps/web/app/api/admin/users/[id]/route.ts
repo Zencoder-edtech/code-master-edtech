@@ -12,7 +12,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   try {
     const { id } = await params;
     const body = await req.json();
-    const { name, email, age, role, subscriptionTier, schoolId, parentalConsent } = body;
+    const { name, email, age, role, subscriptionTier, schoolId, parentalConsent, parentalEmail } = body;
 
     const data: Record<string, unknown> = {};
     if (name !== undefined) data.name = name;
@@ -22,6 +22,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (subscriptionTier !== undefined) data.subscriptionTier = subscriptionTier;
     if (schoolId !== undefined) data.schoolId = schoolId || null;
     if (parentalConsent !== undefined) data.parentalConsent = parentalConsent;
+    if (parentalEmail !== undefined) data.parentalEmail = parentalEmail || null;
 
     const user = await prisma.user.update({ where: { id }, data });
     return NextResponse.json({ user });

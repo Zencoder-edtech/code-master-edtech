@@ -6,12 +6,16 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, BookOpen, LogOut, Shield, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Users, BookOpen, Flame, Terminal, BarChart2, School, LogOut, Shield, Menu, X } from 'lucide-react';
 
 const NAV_ITEMS = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { href: '/admin/users', label: 'Users', icon: Users, exact: false },
   { href: '/admin/courses', label: 'Courses', icon: BookOpen, exact: false },
+  { href: '/admin/streaks', label: 'Streak Adjuster', icon: Flame, exact: false },
+  { href: '/admin/submissions', label: 'Submissions Terminal', icon: Terminal, exact: false },
+  { href: '/admin/analytics', label: 'Analytics & Compliance', icon: BarChart2, exact: false },
+  { href: '/admin/schools', label: 'Schools Manager', icon: School, exact: false },
 ];
 
 interface Props {

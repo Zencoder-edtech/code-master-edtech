@@ -33,5 +33,10 @@ jobs:
       - name: Run ESLint Linter Checks
         run: pnpm lint
 
+      - name: Run TypeScript Type Checks
+        run: pnpm check-types
+
       - name: Run Next.js Production Build
         run: pnpm build
+        env:
+          TURBO_CACHE_DIR: .turbo

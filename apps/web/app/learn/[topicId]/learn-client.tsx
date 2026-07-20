@@ -1,16 +1,8 @@
 // =============================================================================
-// Learn Client — Interactive & Offline-Resilient UI (Client Component)
+// Learn Client — Light Theme, Kid-Friendly Interactive UI
 // =============================================================================
-// Renders the tab navigation (Concept | MCQs | Problems), dynamic code editors,
-// and code execution results.
-//
-// Key Offline & Optimization Features:
-//   1. Local Persistent Caching — caches successful loads to localStorage key:
-//      `cm_topic_cache_<slug>` for instant 0ms offline loads.
-//   2. Active Connectivity Tracking — monitors browser status (online/offline).
-//   3. Zero-Latency Restores — instantly serves content from cache if offline.
-//   4. Connection Fallback Alert — gracefully handles code runs/tab switching offline,
-//      suggesting students study the concept card and offering other offline topics.
+// Renders tab navigation (Concept | MCQs | Problems) with bright colors,
+// animations, and encouraging feedback. Code editor stays dark.
 // =============================================================================
 
 'use client';
@@ -24,24 +16,27 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { playSuccessSound, playErrorSound } from '@/lib/sounds';
 
 // ---------------------------------------------------------------------------
-// Dynamic imports for code editors (no SSR — they need browser APIs)
-// Monaco = VS Code engine (heavy, great for desktop)
-// CodeMirror = lightweight, touch-friendly (great for mobile)
+// Dynamic imports for code editors (no SSR)
 // ---------------------------------------------------------------------------
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
   ssr: false,
-  loading: () => <Skeleton className="h-[300px] w-full rounded-xl bg-zinc-900 border border-zinc-800" />,
+  loading: () => <Skeleton className="h-[300px] w-full rounded-xl" />,
 });
 
 const CodeMirrorEditor = dynamic(
   () => import('@uiw/react-codemirror').then((mod) => mod.default),
   {
     ssr: false,
-    loading: () => <Skeleton className="h-[300px] w-full rounded-xl bg-zinc-900 border border-zinc-800" />,
+    loading: () => <Skeleton className="h-[300px] w-full rounded-xl" />,
   }
 );
 
 const TABS = ['Concept', 'MCQs', 'Problems'] as const;
+const TAB_ICONS: Record<string, string> = {
+  Concept: '📚',
+  MCQs: '❓',
+  Problems: '💻',
+};
 
 interface LearnClientProps {
   topic: Topic | null;
@@ -64,28 +59,157 @@ export function LearnClient({
   isServerOffline = false,
   topicId,
 }: LearnClientProps) {
-  // Connectivity state
   const [isOnline, setIsOnline] = useState(true);
   const [isDbOffline, setIsDbOffline] = useState(isServerOffline);
   const [offlineDataRestored, setOfflineDataRestored] = useState(false);
 
-  // Active loaded data
   const [topic, setTopic] = useState<Topic | null>(initialTopic);
   const [mcqs, setMcqs] = useState<MCQ[]>(initialMcqs);
   const [problems, setProblems] = useState<Problem[]>(initialProblems);
-
-  // Previously cached topics for fallback lookup
   const [offlineTopics, setOfflineTopics] = useState<CachedTopicEntry[]>([]);
 
-  // Mobile detection for editor switching
   const [isMobile, setIsMobile] = useState(false);
-  
-  // Track active tab to lazy-load Monaco/CodeMirror only when entering Problems tab
   const [activeTab, setActiveTab] = useState<string>('Concept');
+
+  const logActivity = (type: string, id: string) => {
+    try {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const raw = localStorage.getItem('cm_activities');
+      let list = [];
+      if (raw) list = JSON.parse(raw);
+      if (!Array.isArray(list)) list = [];
+      
+      const exists = list.some(a => a.date === todayStr && a.type === type && a.id === id);
+      if (!exists) {
+        list.push({ date: todayStr, type, id });
+        localStorage.setItem('cm_activities', JSON.stringify(list));
+      }
+    } catch (e) {
+      console.warn('Unable to log activity:', e);
+    }
+  };
+
+  const updateStreak = () => {
+    try {
+      const STREAK_KEY = 'cm_streak';
+      const rawStreak = localStorage.getItem(STREAK_KEY);
+      let streakData = { streak: 1, longestStreak: 1, lastActivityAt: new Date().toISOString() };
+      
+      if (rawStreak) {
+        const parsed = JSON.parse(rawStreak);
+        const now = new Date();
+        const last = new Date(parsed.lastActivityAt);
+        
+        const toDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        const diffDays = Math.round(
+          (toDay(now).getTime() - toDay(last).getTime()) / (1000 * 60 * 60 * 24)
+        );
+        
+        let newStreak = parsed.streak;
+        if (diffDays === 1) {
+          newStreak = parsed.streak + 1;
+        } else if (diffDays > 1) {
+          newStreak = 1;
+        }
+        
+        streakData = {
+          streak: newStreak,
+          longestStreak: Math.max(parsed.longestStreak, newStreak),
+          lastActivityAt: now.toISOString()
+        };
+      }
+      
+      localStorage.setItem(STREAK_KEY, JSON.stringify(streakData));
+    } catch (e) {
+      console.warn('Unable to update streak:', e);
+    }
+  };
+
+  const handleMCQSolved = (mcqId: string) => {
+    try {
+      const progressKey = `cm_progress_${topicId}`;
+      const raw = localStorage.getItem(progressKey);
+      let data = { solved: [] as string[], solvedMCQs: [] as string[], isComplete: false };
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        data = {
+          solved: parsed.solved || [],
+          solvedMCQs: parsed.solvedMCQs || [],
+          isComplete: parsed.isComplete || false
+        };
+      }
+      if (!data.solvedMCQs.includes(mcqId)) {
+        data.solvedMCQs.push(mcqId);
+        
+        const allMCQsComplete = mcqs.every(m => m.id === mcqId || data.solvedMCQs.includes(m.id));
+        const allProblemsComplete = problems.every(p => data.solved.includes(p.id));
+        data.isComplete = allMCQsComplete && allProblemsComplete;
+        
+        localStorage.setItem(progressKey, JSON.stringify(data));
+        
+        logActivity('mcq', mcqId);
+        updateStreak();
+      }
+    } catch (e) {
+      console.warn('Unable to save MCQ progress:', e);
+    }
+  };
+
+  const handleProblemSolved = (problemId: string, problemTitle: string, userCode: string, status: 'success' | 'compile_error' | 'runtime_error') => {
+    try {
+      const rawSub = localStorage.getItem('cm_submissions');
+      let subList = [];
+      if (rawSub) subList = JSON.parse(rawSub);
+      if (!Array.isArray(subList)) subList = [];
+      
+      const newSubmission = {
+        id: `sub-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        title: `${topic?.title || 'Coding Challenge'} - ${problemTitle}`,
+        status,
+        language: 'python',
+        timestamp: new Date().toISOString(),
+        code: userCode
+      };
+      
+      subList.unshift(newSubmission);
+      localStorage.setItem('cm_submissions', JSON.stringify(subList.slice(0, 20)));
+    } catch (e) {
+      console.warn('Unable to log submission:', e);
+    }
+
+    if (status !== 'success') return;
+
+    try {
+      const progressKey = `cm_progress_${topicId}`;
+      const raw = localStorage.getItem(progressKey);
+      let data = { solved: [] as string[], solvedMCQs: [] as string[], isComplete: false };
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        data = {
+          solved: parsed.solved || [],
+          solvedMCQs: parsed.solvedMCQs || [],
+          isComplete: parsed.isComplete || false
+        };
+      }
+      if (!data.solved.includes(problemId)) {
+        data.solved.push(problemId);
+        
+        const allMCQsComplete = mcqs.every(m => data.solvedMCQs.includes(m.id));
+        const allProblemsComplete = problems.every(p => p.id === problemId || data.solved.includes(p.id));
+        data.isComplete = allMCQsComplete && allProblemsComplete;
+        
+        localStorage.setItem(progressKey, JSON.stringify(data));
+        
+        logActivity('problem', problemId);
+        updateStreak();
+      }
+    } catch (e) {
+      console.warn('Unable to save problem progress:', e);
+    }
+  };
 
   // Monitor connectivity, local cache, and scan cached topics
   useEffect(() => {
-    // 1. Connectivity status setup
     setIsOnline(navigator.onLine);
     const handleOnline = () => {
       setIsOnline(true);
@@ -96,7 +220,6 @@ export function LearnClient({
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // 2. Scan localStorage for other cached topics
     const scanCachedTopics = () => {
       const cachedList: CachedTopicEntry[] = [];
       try {
@@ -109,7 +232,6 @@ export function LearnClient({
           }
         }
 
-        // Fallback scan of all localStorage keys
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
           if (key && key.startsWith('cm_topic_cache_')) {
@@ -135,10 +257,8 @@ export function LearnClient({
 
     scanCachedTopics();
 
-    // 3. Handle offline caching or cache restore
     const cacheKey = `cm_topic_cache_${topicId}`;
     if (isServerOffline) {
-      // Server failed to fetch DB data (offline or database unreachable)
       const cachedRaw = localStorage.getItem(cacheKey);
       if (cachedRaw) {
         try {
@@ -155,7 +275,6 @@ export function LearnClient({
         }
       }
     } else if (initialTopic) {
-      // Loaded successfully from server, write/update cache
       try {
         const payload = {
           topic: initialTopic,
@@ -165,7 +284,6 @@ export function LearnClient({
         };
         localStorage.setItem(cacheKey, JSON.stringify(payload));
 
-        // Update master checklist
         const currentListRaw = localStorage.getItem('cm_cached_topics_list');
         let currentList: CachedTopicEntry[] = [];
         if (currentListRaw) {
@@ -192,7 +310,6 @@ export function LearnClient({
       }
     }
 
-    // 4. Mobile screen resize monitor
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
     window.addEventListener('resize', checkMobile);
@@ -204,10 +321,10 @@ export function LearnClient({
     };
   }, [topicId, isServerOffline, initialTopic, initialMcqs, initialProblems]);
 
-  // Keyboard navigation shortcuts (Alt + 1 / 2 / 3) to switch tabs
+  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.altKey && (e.key === '1' || e.key === '2' || e.key === '3')) {
+      if (e.ctrlKey && !e.metaKey && !e.shiftKey && (e.key === '1' || e.key === '2' || e.key === '3')) {
         e.preventDefault();
         const tabMap: Record<string, string> = { '1': 'Concept', '2': 'MCQs', '3': 'Problems' };
         const nextTab = tabMap[e.key];
@@ -218,56 +335,55 @@ export function LearnClient({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Handle manual tab change
   const handleTabChange = (value: string) => {
     setActiveTab(value);
   };
 
-  // Render completely offline not-cached fallback
+  // Completely offline, no cached data
   if (!topic && (isDbOffline || !isOnline)) {
     return (
       <main className="max-w-4xl mx-auto px-4 sm:px-8 py-12 text-center">
-        <div className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-8 sm:p-12 shadow-2xl backdrop-blur-md">
-          <div className="w-20 h-20 bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-6">
+        <div className="bg-white border-2 border-orange-200 rounded-3xl p-8 sm:p-12 shadow-lg">
+          <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <span className="text-4xl">📶</span>
           </div>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-zinc-100 mb-4">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-[#1A1A2E] mb-4">
             Connection Unstable
           </h2>
-          <p className="text-zinc-400 text-lg max-w-lg mx-auto mb-8 leading-relaxed">
-            This learning topic has not been saved on this device yet. Let&apos;s study one of your other topics that is ready to read completely offline!
+          <p className="text-[#64648B] text-lg max-w-lg mx-auto mb-8 leading-relaxed">
+            This topic hasn&apos;t been saved on this device yet. Try one of your offline-ready topics!
           </p>
 
           {offlineTopics.length > 0 ? (
             <div className="max-w-md mx-auto space-y-3 text-left">
-              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-widest px-1">
-                Offline-Ready Topics
+              <h3 className="text-xs font-bold text-[#9E9EB8] uppercase tracking-widest px-1">
+                📱 Offline-Ready Topics
               </h3>
               <div className="grid gap-3">
                 {offlineTopics.map((item) => (
                   <a
                     key={item.slug}
                     href={`/learn/${item.slug}`}
-                    className="flex items-center justify-between p-4 rounded-xl bg-zinc-800/50 border border-zinc-700 hover:border-zinc-500 transition-all hover:bg-zinc-800"
+                    className="flex items-center justify-between p-4 rounded-xl bg-purple-50 border border-purple-200 hover:border-purple-400 transition-all hover:shadow-md"
                   >
                     <div>
-                      <h4 className="font-semibold text-zinc-100 text-sm">{item.title}</h4>
-                      <p className="text-xs text-zinc-400 line-clamp-1">{item.description}</p>
+                      <h4 className="font-bold text-[#1A1A2E] text-sm">{item.title}</h4>
+                      <p className="text-xs text-[#9E9EB8] line-clamp-1">{item.description}</p>
                     </div>
-                    <span className="text-sm font-semibold text-blue-400">Study Offline →</span>
+                    <span className="text-sm font-bold text-purple-600">Study →</span>
                   </a>
                 ))}
               </div>
             </div>
           ) : (
-            <div className="p-4 bg-zinc-900 border border-zinc-800 rounded-xl max-w-sm mx-auto text-sm text-zinc-500">
-              No offline concepts saved yet. Reconnect to the internet to cache your first programming topic!
+            <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl max-w-sm mx-auto text-sm text-[#9E9EB8]">
+              No offline topics saved yet. Connect to the internet to cache your first topic!
             </div>
           )}
 
           <button
             onClick={() => window.location.reload()}
-            className="mt-8 px-6 py-3 rounded-xl font-bold bg-blue-600 hover:bg-blue-500 text-white transition-all shadow-lg"
+            className="mt-8 px-6 py-3 rounded-xl font-bold bg-purple-600 hover:bg-purple-700 text-white transition-all shadow-lg active:scale-[0.97]"
           >
             🔄 Try Reconnecting
           </button>
@@ -276,13 +392,12 @@ export function LearnClient({
     );
   }
 
-  // Double check topic availability
   if (!topic) {
     return (
       <main className="max-w-6xl mx-auto px-4 sm:px-8 py-12">
         <div className="animate-pulse space-y-6">
-          <Skeleton className="h-10 w-48 bg-zinc-900 rounded-xl" />
-          <Skeleton className="h-[300px] w-full bg-zinc-900 rounded-2xl" />
+          <Skeleton className="h-10 w-48 rounded-xl" />
+          <Skeleton className="h-[300px] w-full rounded-2xl" />
         </div>
       </main>
     );
@@ -294,7 +409,7 @@ export function LearnClient({
       try {
         await navigator.share({
           title: `Mastering ${topic?.title || 'CodeMaster'}!`,
-          text: `Check out my progress studying ${topic?.title || 'this topic'} on CodeMaster EdTech!`,
+          text: `Check out my progress studying ${topic?.title || 'this topic'} on CodeMaster!`,
           url: window.location.href,
         });
       } catch { /* ignore */ }
@@ -308,35 +423,40 @@ export function LearnClient({
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-8 py-6">
-      {/* Premium Dynamic Header Block */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-5 backdrop-blur-md">
+      {/* Dynamic Header Block */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 bg-white border-2 border-purple-100 rounded-2xl p-5 shadow-sm">
         <div>
-          <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">Interactive Lesson</span>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-zinc-100 tracking-tight mt-1">{topic.title}</h1>
+          <span className="text-[10px] font-bold text-purple-500 uppercase tracking-widest">Interactive Lesson</span>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#1A1A2E] tracking-tight mt-1">{topic.title}</h1>
         </div>
-        <button
-          onClick={handleShare}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700/80 border border-zinc-700 text-sm font-bold text-zinc-200 transition-all active:scale-95 shadow-md self-start sm:self-auto"
-        >
-          <span>🔗</span> Share Mastery
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <button
+            onClick={handleShare}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-200 text-sm font-bold text-purple-700 transition-all active:scale-95 shadow-sm"
+          >
+            <span>🔗</span> Share
+          </button>
+        </div>
       </div>
 
-      {/* Premium connectivity notifications */}
+      {/* Keyboard Shortcut Legend */}
+      <KeyboardShortcutLegend />
+
+      {/* Connectivity Notices */}
       {(!isOnline || isDbOffline) && (
-        <div className="mb-6 bg-yellow-500/10 border-2 border-yellow-500/20 backdrop-blur-md rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="mb-6 bg-orange-50 border-2 border-orange-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <span className="text-2xl animate-pulse">📶</span>
             <div>
-              <h4 className="font-bold text-yellow-400 text-sm">
+              <h4 className="font-bold text-orange-700 text-sm">
                 Running in Offline Mode
               </h4>
-              <p className="text-xs text-zinc-300">
-                Connection unstable. {offlineDataRestored ? 'Content successfully restored from local cache. ' : ''}You can keep reading concepts!
+              <p className="text-xs text-orange-600/70">
+                Connection unstable. {offlineDataRestored ? 'Content restored from cache. ' : ''}You can keep reading concepts!
               </p>
             </div>
           </div>
-          <span className="text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 bg-yellow-500/20 text-yellow-400 rounded-full select-none">
+          <span className="text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 bg-orange-200 text-orange-700 rounded-full select-none">
             Offline Ready
           </span>
         </div>
@@ -344,19 +464,20 @@ export function LearnClient({
 
       <Tabs defaultValue="Concept" value={activeTab} onValueChange={handleTabChange} className="w-full">
         {/* Tab Navigation */}
-        <TabsList className="flex w-full bg-zinc-900 rounded-xl p-1 mb-6 flex-wrap sm:flex-nowrap h-auto sm:h-12 border border-zinc-800">
-          {TABS.map((tab) => (
+        <TabsList className="flex w-full bg-gray-100 rounded-2xl p-1.5 mb-6 flex-wrap sm:flex-nowrap h-auto sm:h-14 border border-gray-200">
+          {TABS.map((tab, idx) => (
             <TabsTrigger
               key={tab}
               value={tab}
-              className="flex-1 py-3 px-4 rounded-lg text-sm font-semibold transition-all data-[state=active]:bg-blue-600 data-[state=active]:text-white text-zinc-400 hover:text-zinc-200"
+              className="flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-purple-700 data-[state=active]:shadow-md text-gray-500 hover:text-gray-700 gap-2"
             >
+              <span>{TAB_ICONS[tab]}</span>
               {tab}
+              <span className="hidden sm:inline-block text-[9px] font-mono opacity-40 ml-1.5">Ctrl+{idx + 1}</span>
             </TabsTrigger>
           ))}
         </TabsList>
 
-        {/* Tab Content */}
         <TabsContent value="Concept">
           <ConceptTab topic={topic} />
         </TabsContent>
@@ -364,6 +485,7 @@ export function LearnClient({
           <MCQsTab
             mcqs={mcqs}
             switchToConcept={() => setActiveTab('Concept')}
+            onMCQSolved={handleMCQSolved}
           />
         </TabsContent>
         <TabsContent value="Problems">
@@ -373,6 +495,7 @@ export function LearnClient({
             isOnline={isOnline && !isDbOffline}
             switchToConcept={() => setActiveTab('Concept')}
             activeTab={activeTab}
+            onProblemSolved={handleProblemSolved}
           />
         </TabsContent>
       </Tabs>
@@ -381,14 +504,59 @@ export function LearnClient({
 }
 
 // =============================================================================
-// Concept Tab — HTML + video (fully client-side / offline functional)
+// Keyboard Shortcut Legend
+// =============================================================================
+function KeyboardShortcutLegend() {
+  const [isOpen, setIsOpen] = useState(false);
+  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone/.test(navigator.userAgent);
+  const mod = isMac ? '⌘' : 'Ctrl';
+
+  const shortcuts = [
+    { keys: `Ctrl+1`, desc: 'Concept tab' },
+    { keys: `Ctrl+2`, desc: 'MCQs tab' },
+    { keys: `Ctrl+3`, desc: 'Problems tab' },
+    { keys: `${mod}+↵`, desc: 'Run code' },
+    { keys: `Ctrl+←/→`, desc: 'Switch problem' },
+  ];
+
+  return (
+    <div className="fixed bottom-6 right-6 z-50 hidden sm:block">
+      {isOpen && (
+        <div className="absolute bottom-14 right-0 bg-white border-2 border-purple-100 rounded-2xl p-4 shadow-xl w-56 animate-slide-in">
+          <h4 className="text-[10px] font-bold text-[#9E9EB8] uppercase tracking-widest mb-3">⌨️ Keyboard Shortcuts</h4>
+          <div className="space-y-2">
+            {shortcuts.map((s) => (
+              <div key={s.keys} className="flex items-center justify-between">
+                <span className="text-xs text-[#64648B]">{s.desc}</span>
+                <kbd className="text-[10px] font-mono bg-gray-100 border border-gray-200 rounded-md px-1.5 py-0.5 text-[#1A1A2E]">{s.keys}</kbd>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`w-11 h-11 rounded-xl flex items-center justify-center text-lg transition-all shadow-lg border-2 ${
+          isOpen
+            ? 'bg-purple-600 border-purple-500 text-white shadow-purple-600/20'
+            : 'bg-white border-gray-200 text-gray-500 hover:text-purple-600 hover:border-purple-300 shadow-gray-200/50'
+        }`}
+        title="Keyboard shortcuts"
+      >
+        ⌨️
+      </button>
+    </div>
+  );
+}
+
+// =============================================================================
+// Concept Tab
 // =============================================================================
 function ConceptTab({ topic }: { topic: Topic }) {
   return (
-    <div className="bg-zinc-900 rounded-2xl p-6 sm:p-8 border border-zinc-800 shadow-xl">
-      {/* Video embed (requires internet) */}
+    <div className="bg-white rounded-2xl p-6 sm:p-8 border-2 border-gray-100 shadow-sm">
       {topic.videoUrl && (
-        <div className="aspect-video mb-8 rounded-xl overflow-hidden bg-zinc-950 border border-zinc-800 shadow-inner relative group">
+        <div className="aspect-video mb-8 rounded-xl overflow-hidden bg-gray-50 border border-gray-200 shadow-inner relative group">
           <iframe
             src={topic.videoUrl}
             title={topic.title}
@@ -396,16 +564,15 @@ function ConceptTab({ topic }: { topic: Topic }) {
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
           />
-          <div className="absolute inset-0 bg-zinc-900 flex flex-col items-center justify-center p-4 text-center z-0">
+          <div className="absolute inset-0 bg-gray-50 flex flex-col items-center justify-center p-4 text-center z-0">
             <span className="text-3xl mb-2">🎬</span>
-            <p className="text-xs text-zinc-500 max-w-xs">Video content requires an active internet connection to stream.</p>
+            <p className="text-xs text-[#9E9EB8] max-w-xs">Video requires internet connection.</p>
           </div>
         </div>
       )}
 
-      {/* Concept HTML content */}
       <div
-        className="prose prose-invert prose-zinc max-w-none prose-headings:font-extrabold prose-p:leading-relaxed prose-pre:bg-zinc-950 prose-pre:border prose-pre:border-zinc-800 prose-pre:rounded-2xl"
+        className="prose-light max-w-none [&_h2]:text-2xl [&_h2]:font-extrabold [&_h2]:mb-4 [&_h2]:text-[#1A1A2E] [&_p]:text-[#64648B] [&_p]:leading-relaxed [&_p]:mb-4 [&_pre]:bg-[#1E1E2E] [&_pre]:text-[#CDD6F4] [&_pre]:p-5 [&_pre]:rounded-2xl [&_pre]:border [&_pre]:border-gray-200 [&_pre]:mb-6 [&_pre]:overflow-x-auto [&_code]:text-purple-600 [&_code]:bg-purple-50 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded-md [&_code]:text-sm [&_pre_code]:text-[#CDD6F4] [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_strong]:text-[#1A1A2E] [&_strong]:font-bold"
         dangerouslySetInnerHTML={{ __html: topic.conceptHtml }}
       />
     </div>
@@ -413,15 +580,17 @@ function ConceptTab({ topic }: { topic: Topic }) {
 }
 
 // =============================================================================
-// MCQs Tab — Quiz with offline fallback check
+// MCQs Tab
 // =============================================================================
 interface MCQsTabProps {
   mcqs: MCQ[];
   switchToConcept: () => void;
+  onMCQSolved: (mcqId: string) => void;
 }
 
-function MCQsTab({ mcqs, switchToConcept }: MCQsTabProps) {
+function MCQsTab({ mcqs, switchToConcept, onMCQSolved }: MCQsTabProps) {
   const [answers, setAnswers] = useState<Record<string, number | null>>({});
+  const [shakeId, setShakeId] = useState<string | null>(null);
 
   const handleSelect = (mcqId: string, optionIndex: number) => {
     if (answers[mcqId] !== undefined && answers[mcqId] !== null) return;
@@ -432,53 +601,65 @@ function MCQsTab({ mcqs, switchToConcept }: MCQsTabProps) {
       const isCorrect = selectedMcq.options[optionIndex]?.isCorrect;
       if (isCorrect) {
         playSuccessSound();
+        onMCQSolved(mcqId);
       } else {
         playErrorSound();
+        setShakeId(mcqId);
+        setTimeout(() => setShakeId(null), 600);
       }
     }
   };
 
-  // If completely offline and there are no loaded MCQs, show offline block
   if (mcqs.length === 0) {
     return (
-      <div className="bg-zinc-900 rounded-2xl p-8 border border-zinc-800 text-center shadow-lg">
+      <div className="bg-white rounded-2xl p-8 border-2 border-orange-200 text-center shadow-sm">
         <span className="text-3xl mb-4 block">📶</span>
-        <h3 className="text-lg font-bold text-zinc-100 mb-2">Unstable Connection</h3>
-        <p className="text-sm text-zinc-400 max-w-md mx-auto mb-6">
-          Wifi connection is currently slow or disconnected. Study the concepts first to get ready!
+        <h3 className="text-lg font-bold text-[#1A1A2E] mb-2">Unstable Connection</h3>
+        <p className="text-sm text-[#64648B] max-w-md mx-auto mb-6">
+          Study the concepts first while we restore your connection!
         </p>
         <button
           onClick={switchToConcept}
-          className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold text-white text-sm transition-all"
+          className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 rounded-xl font-bold text-white text-sm transition-all"
         >
-          📚 Study Concepts Offline
+          📚 Study Concepts
         </button>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 stagger-children">
       {mcqs.map((mcq, qi) => {
         const selectedIndex = answers[mcq.id] ?? null;
         const hasAnswered = selectedIndex !== null;
+        const isShaking = shakeId === mcq.id;
 
         return (
-          <div key={mcq.id} className="bg-zinc-900 rounded-2xl p-6 border border-zinc-800 shadow-md">
-            <h3 className="text-lg font-bold mb-4">
-              <span className="text-blue-400">Q{qi + 1}.</span> {mcq.question}
+          <div
+            key={mcq.id}
+            className={`bg-white rounded-2xl p-6 border-2 shadow-sm transition-all ${
+              hasAnswered
+                ? mcq.options[selectedIndex]?.isCorrect
+                  ? 'border-teal-300 bg-teal-50/30'
+                  : 'border-red-300 bg-red-50/30'
+                : 'border-gray-100'
+            } ${isShaking ? 'animate-shake' : ''}`}
+          >
+            <h3 className="text-lg font-bold mb-4 text-[#1A1A2E]">
+              <span className="text-purple-600">Q{qi + 1}.</span> {mcq.question}
             </h3>
 
             <div className="space-y-3">
               {mcq.options.map((opt, oi) => {
-                let optionStyle = 'border-zinc-800 hover:border-zinc-700 bg-zinc-950/40 hover:bg-zinc-950/70';
+                let optionStyle = 'border-gray-200 hover:border-purple-300 bg-gray-50 hover:bg-purple-50 text-[#1A1A2E]';
                 if (hasAnswered) {
                   if (opt.isCorrect) {
-                    optionStyle = 'border-green-500 bg-green-500/10 text-green-300';
+                    optionStyle = 'border-teal-400 bg-teal-50 text-teal-800';
                   } else if (oi === selectedIndex && !opt.isCorrect) {
-                    optionStyle = 'border-red-500 bg-red-500/10 text-red-300';
+                    optionStyle = 'border-red-400 bg-red-50 text-red-700';
                   } else {
-                    optionStyle = 'border-zinc-900 opacity-40 bg-zinc-950/10';
+                    optionStyle = 'border-gray-100 opacity-40 bg-gray-50';
                   }
                 }
 
@@ -488,23 +669,33 @@ function MCQsTab({ mcqs, switchToConcept }: MCQsTabProps) {
                     onClick={() => handleSelect(mcq.id, oi)}
                     disabled={hasAnswered}
                     className={`w-full text-left px-5 py-4 rounded-xl border-2 transition-all font-semibold ${optionStyle} ${
-                      !hasAnswered ? 'cursor-pointer' : 'cursor-default'
+                      !hasAnswered ? 'cursor-pointer active:scale-[0.99]' : 'cursor-default'
                     }`}
                   >
-                    <span className="font-mono text-sm text-zinc-500 mr-3">
+                    <span className="font-mono text-sm text-[#9E9EB8] mr-3">
                       {String.fromCharCode(65 + oi)}.
                     </span>
                     {opt.text}
+                    {hasAnswered && opt.isCorrect && (
+                      <span className="ml-2">✅</span>
+                    )}
+                    {hasAnswered && oi === selectedIndex && !opt.isCorrect && (
+                      <span className="ml-2">❌</span>
+                    )}
                   </button>
                 );
               })}
             </div>
 
             {hasAnswered && (
-              <div className="mt-4 p-4 bg-zinc-950/60 rounded-xl border border-zinc-800/80">
-                <p className="text-sm text-zinc-300 leading-relaxed">
-                  <span className="font-bold text-blue-400">Explanation: </span>
-                  {mcq.explanation}
+              <div className={`mt-4 p-4 rounded-xl border ${
+                mcq.options[selectedIndex]?.isCorrect
+                  ? 'bg-teal-50 border-teal-200'
+                  : 'bg-blue-50 border-blue-200'
+              }`}>
+                <p className="text-sm leading-relaxed">
+                  <span className="font-bold text-purple-700">💡 Explanation: </span>
+                  <span className="text-[#64648B]">{mcq.explanation}</span>
                 </p>
               </div>
             )}
@@ -516,7 +707,7 @@ function MCQsTab({ mcqs, switchToConcept }: MCQsTabProps) {
 }
 
 // =============================================================================
-// Problems Tab — Editor + Execution + Connection warnings
+// Problems Tab
 // =============================================================================
 interface ProblemsTabProps {
   problems: Problem[];
@@ -524,6 +715,7 @@ interface ProblemsTabProps {
   isOnline: boolean;
   switchToConcept: () => void;
   activeTab: string;
+  onProblemSolved: (problemId: string, problemTitle: string, userCode: string, status: 'success' | 'compile_error' | 'runtime_error') => void;
 }
 
 function ProblemsTab({
@@ -532,13 +724,14 @@ function ProblemsTab({
   isOnline,
   switchToConcept,
   activeTab,
+  onProblemSolved,
 }: ProblemsTabProps) {
   const [activeProblem, setActiveProblem] = useState(0);
   const [codeMap, setCodeMap] = useState<Record<string, string>>({});
   const [output, setOutput] = useState<string>('');
   const [isRunning, setIsRunning] = useState(false);
+  const [isSuccess, setIsSuccess] = useState<boolean | null>(null);
 
-  // Load starter code on mount or when problems change
   useEffect(() => {
     if (problems && problems.length > 0) {
       const map: Record<string, string> = {};
@@ -560,12 +753,16 @@ function ProblemsTab({
   const handleRunCode = useCallback(async () => {
     if (!problem) return;
     if (!isOnline) {
-      setOutput('📶 Cannot run code offline. Please connect to the internet to run and verify your solution on the live compiler.');
+      setOutput('📶 Cannot run code offline. Please connect to the internet.');
+      setIsSuccess(false);
       return;
     }
 
     setIsRunning(true);
     setOutput('Running on compiler...');
+    setIsSuccess(null);
+
+    let finalStatus: 'success' | 'compile_error' | 'runtime_error' = 'success';
 
     try {
       const res = await fetch('/api/execute', {
@@ -582,51 +779,74 @@ function ProblemsTab({
 
       if (result.compile_output) {
         setOutput(`Compile Error:\n${result.compile_output}`);
+        setIsSuccess(false);
+        finalStatus = 'compile_error';
         playErrorSound();
       } else if (result.stderr) {
         setOutput(`Error:\n${result.stderr}`);
+        setIsSuccess(false);
+        finalStatus = 'runtime_error';
         playErrorSound();
       } else if (result.stdout) {
         setOutput(result.stdout);
+        setIsSuccess(true);
         playSuccessSound();
       } else {
         setOutput('No output');
+        setIsSuccess(true);
         playSuccessSound();
       }
+
+      onProblemSolved(problem.id, problem.title, codeMap[problem.id] ?? '', finalStatus);
     } catch {
-      setOutput('📶 The network compiler is currently unreachable. While we try to restore connection, you can keep drafting your code or review the concepts page!');
+      setOutput('📶 The compiler is currently unreachable. Keep drafting your code!');
+      setIsSuccess(false);
       playErrorSound();
     }
 
     setIsRunning(false);
-  }, [codeMap, problem, isOnline]);
+  }, [codeMap, problem, isOnline, onProblemSolved]);
 
-  // Keyboard shortcut (Cmd + Enter or Ctrl + Enter) to compile code
+  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (activeTab === 'Problems' && (e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      if (activeTab !== 'Problems') return;
+
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
         e.preventDefault();
         handleRunCode();
+      }
+
+      if (e.ctrlKey && !e.metaKey && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        setActiveProblem((prev) => Math.max(0, prev - 1));
+        setOutput('');
+        setIsSuccess(null);
+      }
+      if (e.ctrlKey && !e.metaKey && e.key === 'ArrowRight') {
+        e.preventDefault();
+        setActiveProblem((prev) => Math.min(problems.length - 1, prev + 1));
+        setOutput('');
+        setIsSuccess(null);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeTab, handleRunCode]);
+  }, [activeTab, handleRunCode, problems.length]);
 
-  // If there are no loaded problems, show offline block
   if (!problem) {
     return (
-      <div className="bg-zinc-900 rounded-2xl p-8 border border-zinc-800 text-center shadow-lg">
+      <div className="bg-white rounded-2xl p-8 border-2 border-orange-200 text-center shadow-sm">
         <span className="text-3xl mb-4 block">📶</span>
-        <h3 className="text-lg font-bold text-zinc-100 mb-2">Unstable Connection</h3>
-        <p className="text-sm text-zinc-400 max-w-md mx-auto mb-6">
-          Wifi connection is currently slow or disconnected. Study the concepts first to get ready!
+        <h3 className="text-lg font-bold text-[#1A1A2E] mb-2">Unstable Connection</h3>
+        <p className="text-sm text-[#64648B] max-w-md mx-auto mb-6">
+          Study the concepts first to get ready!
         </p>
         <button
           onClick={switchToConcept}
-          className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold text-white text-sm transition-all"
+          className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 rounded-xl font-bold text-white text-sm transition-all"
         >
-          📚 Study Concepts Offline
+          📚 Study Concepts
         </button>
       </div>
     );
@@ -634,87 +854,88 @@ function ProblemsTab({
 
   return (
     <div className="space-y-6">
-      {/* Problem selector tabs */}
+      {/* Problem selector */}
       <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none select-none">
-        {problems.map((p, i) => (
-          <button
-            key={p.id}
-            onClick={() => {
-              setActiveProblem(i);
-              setOutput('');
-            }}
-            className={`shrink-0 px-4 py-2.5 rounded-xl text-sm font-bold transition-all border ${
-              i === activeProblem
-                ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-600/15'
-                : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <span
-              className={`inline-block w-2.5 h-2.5 rounded-full mr-2.5 ${
-                p.difficulty === 'easy' || p.difficulty === 'fill_blank'
-                  ? 'bg-green-400'
-                  : p.difficulty === 'medium' || p.difficulty === 'full_code'
-                    ? 'bg-yellow-400'
-                    : 'bg-red-400'
+        {problems.map((p, i) => {
+          const difficultyColor = 
+            p.difficulty === 'easy' || p.difficulty === 'fill_blank'
+              ? 'bg-teal-400'
+              : p.difficulty === 'medium' || p.difficulty === 'full_code'
+                ? 'bg-orange-400'
+                : 'bg-red-400';
+
+          return (
+            <button
+              key={p.id}
+              onClick={() => {
+                setActiveProblem(i);
+                setOutput('');
+                setIsSuccess(null);
+              }}
+              className={`shrink-0 px-4 py-2.5 rounded-xl text-sm font-bold transition-all border-2 ${
+                i === activeProblem
+                  ? 'bg-purple-600 text-white border-purple-500 shadow-md shadow-purple-600/15'
+                  : 'bg-white border-gray-200 text-[#64648B] hover:text-[#1A1A2E] hover:border-purple-200'
               }`}
-            />
-            {p.title}
-          </button>
-        ))}
+            >
+              <span className={`inline-block w-2.5 h-2.5 rounded-full mr-2.5 ${difficultyColor}`} />
+              {p.title}
+            </button>
+          );
+        })}
       </div>
 
-      {/* Connection notice for Code Compiler */}
+      {/* Offline notice */}
       {!isOnline && (
-        <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <p className="text-sm text-zinc-300">
-            <span className="font-bold text-yellow-400 mr-2">📶 Offline Compiler Note:</span>
-            You are drafting code offline. Code verification requires internet access. Keep coding, or read concepts in the meantime!
+        <div className="bg-orange-50 border-2 border-orange-200 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <p className="text-sm text-[#64648B]">
+            <span className="font-bold text-orange-600 mr-2">📶 Offline Note:</span>
+            You&apos;re drafting code offline. Running code requires internet.
           </p>
           <button
             onClick={switchToConcept}
-            className="shrink-0 px-4 py-2 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 font-bold rounded-xl text-xs transition-all"
+            className="shrink-0 px-4 py-2 bg-orange-100 hover:bg-orange-200 text-orange-700 font-bold rounded-xl text-xs transition-all border border-orange-200"
           >
-            📚 Read Concepts Offline
+            📚 Read Concepts
           </button>
         </div>
       )}
 
       {/* Problem description */}
-      <div className="bg-zinc-900 rounded-2xl p-6 border border-zinc-800 shadow-md">
+      <div className="bg-white rounded-2xl p-6 border-2 border-gray-100 shadow-sm">
         <div className="flex items-center gap-3 mb-3">
-          <h3 className="text-lg font-bold">{problem.title}</h3>
+          <h3 className="text-lg font-bold text-[#1A1A2E]">{problem.title}</h3>
           <span
             className={`text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider ${
               problem.difficulty === 'easy' || problem.difficulty === 'fill_blank'
-                ? 'bg-green-500/10 text-green-400 border border-green-500/20'
+                ? 'bg-teal-100 text-teal-700 border border-teal-200'
                 : problem.difficulty === 'medium' || problem.difficulty === 'full_code'
-                  ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
-                  : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                  ? 'bg-orange-100 text-orange-700 border border-orange-200'
+                  : 'bg-red-100 text-red-700 border border-red-200'
             }`}
           >
             {problem.difficulty === 'fill_blank' ? 'Fill Blank' : problem.difficulty === 'full_code' ? 'Full Code' : problem.difficulty}
           </span>
         </div>
-        <p className="text-zinc-400 leading-relaxed text-sm">{problem.description}</p>
+        <p className="text-[#64648B] leading-relaxed text-sm">{problem.description}</p>
       </div>
 
-      {/* Code Editor */}
-      <div className="bg-zinc-900 rounded-2xl overflow-hidden border border-zinc-800 shadow-xl">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800 bg-zinc-900/60">
-          <span className="text-sm font-semibold text-zinc-400">
-            Python 3 — {isMobile ? 'CodeMirror' : 'Monaco Editor'}
+      {/* Code Editor — stays dark for readability */}
+      <div className="bg-[#1E1E2E] rounded-2xl overflow-hidden border-2 border-gray-200 shadow-xl">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-[#1E1E2E]">
+          <span className="text-sm font-semibold text-gray-400">
+            🐍 Python 3 — {isMobile ? 'CodeMirror' : 'Monaco Editor'}
           </span>
           <button
             onClick={handleRunCode}
             disabled={isRunning}
-            className="bg-green-600 hover:bg-green-500 disabled:bg-zinc-800 disabled:text-zinc-600 text-white px-6 py-2 rounded-xl font-bold text-sm transition-all shadow-md active:scale-98"
+            className="bg-teal-500 hover:bg-teal-400 disabled:bg-gray-600 disabled:text-gray-400 text-white px-6 py-2 rounded-xl font-bold text-sm transition-all shadow-md active:scale-[0.97] flex items-center gap-2"
           >
-            {isRunning ? '⏳ Running...' : '▶ Run Code'}
+            {isRunning ? '⏳ Running...' : (<>▶ Run Code <span className="hidden sm:inline text-[10px] font-mono opacity-60 bg-teal-600/50 rounded px-1.5 py-0.5">⌘↵</span></>)}
           </button>
         </div>
 
-        {/* Editor area — dynamic lazy load only if Problem tab active */}
-        <div className="min-h-[300px] bg-zinc-950">
+        <div className="min-h-[300px] bg-[#1E1E2E]">
           {activeTab === 'Problems' && (
             isMobile ? (
               <CodeMirrorEditor
@@ -748,32 +969,40 @@ function ProblemsTab({
         </div>
       </div>
 
-      {/* Mobile-friendly Run Code button */}
+      {/* Mobile Run button */}
       {isMobile && (
         <button
           onClick={handleRunCode}
           disabled={isRunning}
-          className="w-full bg-green-600 hover:bg-green-500 disabled:bg-zinc-800 text-white py-5 rounded-2xl font-extrabold text-lg transition-all shadow-lg active:scale-95"
+          className="w-full bg-teal-500 hover:bg-teal-400 disabled:bg-gray-300 text-white py-5 rounded-2xl font-extrabold text-lg transition-all shadow-lg active:scale-95"
         >
           {isRunning ? '⏳ Running...' : '▶ Run Code'}
         </button>
       )}
 
       {/* Output Panel */}
-      <div className="bg-zinc-900 rounded-2xl overflow-hidden border border-zinc-800 shadow-lg">
-        <div className="px-4 py-3 border-b border-zinc-800 bg-zinc-900/60 flex items-center justify-between">
-          <span className="text-sm font-semibold text-zinc-400">Output</span>
+      <div className={`bg-white rounded-2xl overflow-hidden border-2 shadow-sm transition-all ${
+        isSuccess === true ? 'border-teal-300' : isSuccess === false ? 'border-red-300' : 'border-gray-100'
+      }`}>
+        <div className={`px-4 py-3 border-b flex items-center justify-between ${
+          isSuccess === true ? 'bg-teal-50 border-teal-200' : isSuccess === false ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-100'
+        }`}>
+          <span className={`text-sm font-bold ${
+            isSuccess === true ? 'text-teal-700' : isSuccess === false ? 'text-red-700' : 'text-[#64648B]'
+          }`}>
+            {isSuccess === true ? '✅ Output — Success!' : isSuccess === false ? '❌ Output — Error' : '📤 Output'}
+          </span>
           {output && (
             <button
-              onClick={() => setOutput('')}
-              className="text-xs text-zinc-500 hover:text-zinc-300 transition-all font-semibold"
+              onClick={() => { setOutput(''); setIsSuccess(null); }}
+              className="text-xs text-[#9E9EB8] hover:text-[#64648B] transition-all font-semibold"
             >
               Clear
             </button>
           )}
         </div>
-        <pre className="p-5 text-sm font-mono text-zinc-200 min-h-[120px] bg-zinc-950/40 whitespace-pre-wrap leading-relaxed shadow-inner">
-          {output || 'Click "Run Code" to view compiler output here.'}
+        <pre className="p-5 text-sm font-mono text-[#1A1A2E] min-h-[120px] bg-white whitespace-pre-wrap leading-relaxed">
+          {output || 'Click "Run Code" to view compiler output here. 🚀'}
         </pre>
       </div>
     </div>

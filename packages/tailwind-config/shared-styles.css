@@ -4,4 +4,25 @@
   --color-blue-1000: #2a8af6;
   --color-purple-1000: #a853ba;
   --color-red-1000: #e92a67;
+
+  /* Light Theme Tokens */
+  --color-brand-purple: #7C3AED;
+  --color-brand-purple-light: #EDE9FE;
+  --color-brand-orange: #F97316;
+  --color-brand-orange-light: #FFF7ED;
+  --color-brand-teal: #14B8A6;
+  --color-brand-teal-light: #F0FDFA;
+  --color-brand-pink: #EC4899;
+  --color-brand-pink-light: #FDF2F8;
+  --color-brand-green: #22C55E;
+  --color-brand-blue: #3B82F6;
+  --color-brand-blue-light: #EFF6FF;
+  --color-bg-primary: #FFFFFF;
+  --color-bg-secondary: #F8F7FF;
+  --color-bg-accent: #F0EDFF;
+  --color-text-heading: #1A1A2E;
+  --color-text-body: #64648B;
+  --color-text-muted: #9E9EB8;
+  --color-border-light: #E5E7EB;
+  --color-border-purple: #DDD6FE;
 }
